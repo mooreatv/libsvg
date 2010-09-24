@@ -1,0 +1,8 @@
+package-as: LibSVG-1.0
+
+externals:
+    LibStub.lua:               svn://svn.wowace.com/wow/libstub/mainline/trunk/LibStub.lua
+    LibXML-1.0.lua:            svn://svn.wowace.com/wow/libxml-1-0/mainline/trunk/LibXML-1.0.lua
+    
+ignore:
+ - Docs
