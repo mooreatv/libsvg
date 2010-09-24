@@ -128,6 +128,10 @@ function LibSVG:Compile(xml, group)
                     end
                 end
             end
+			object.color = object.color or group.color;
+			object.stroke = object.stroke or group.stroke;
+			object.fill = object.fill or group.fill;
+
 
 			-- This is just debug stuff I use --
             --fill = nil;
@@ -500,7 +504,7 @@ function LibSVG:RenderReal(object)
 					if ( v[i] ~= prev ) then
 						n = n + 1;
 						if ( math.fmod(n,2) == 0 ) then
-							LibSVG.DrawVLine(object.canvas,k,prev-1,v[i]+1,24, object.fill, "ARTWORK");
+							LibSVG.DrawVLine(object.canvas,k,prev-1,v[i]+1,30, object.fill, "ARTWORK");
 						end
 						prev = v[i];
 					end
@@ -670,6 +674,7 @@ end
 
 function LibSVG.ParseColor(color)
     if ( type(color) == "string" ) then
+		color = color:gsub("%s", "");
         if ( color:sub(1,1) == "#" ) then
             local ret = {};
             if ( color:len() == 4 ) then
