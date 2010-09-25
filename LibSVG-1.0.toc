@@ -1,7 +1,7 @@
 ## Interface: 30300
 ## Title: LibSVG-1.0
-## Notes: SVG Render
+## Notes: SVG Render-bender
 ## Author: Humbedooh
-LibStub.lua
-LibXML-1.0.lua
+LibStub\LibStub.lua
+LibXML\LibXML-1.0.lua
 LibSVG-1.0.lua
