@@ -76,8 +76,10 @@ function LibSVG:Compile(xml, group)
 	local group = group or svg.CompiledData;
 	group.children = {};
 
-	for k, el in pairs(xml) do
+	for i = 1, #xml do
+		local el = xml[i];
         if ( type(el) == "table" ) then
+			print(el, el.class, el.empty);
 			local object = { };
             el.args = el.args or {};
             object.fillMatrix = {};
@@ -99,7 +101,7 @@ function LibSVG:Compile(xml, group)
                     table.insert(object.transformations, 1, {'m', tonumber(a),tonumber(b),tonumber(c),tonumber(d),tonumber(e),tonumber(f)});
                 end
             end
-            object.stroke = (tonumber((el.args['stroke-width'] or ""):match("([%d%.%-]+)")) or 0)*20
+            object.stroke = (tonumber((el.args['stroke-width'] or ""):match("([%d%.%-]+)")) or 1.5)*20
             if ( el.args['stroke-width'] == "none" ) then object.stroke = 0; end
             object.color = LibSVG.ParseColor(el.args.stroke);
             object.fill = LibSVG.ParseColor(el.args.fill);
@@ -124,7 +126,7 @@ function LibSVG:Compile(xml, group)
                 if ( style:match("stroke%-width:([%d%.%-]+)") ) then
                     if ( style:match("stroke%-width:(none)") ) then stroke = 0;
                     else
-                        object.stroke = (tonumber(style:match("stroke%-width:([%d%.%-]+)")) or 0)*20
+                        object.stroke = (tonumber(style:match("stroke%-width:([%d%.%-]+)")) or 1.5)*20
                     end
                 end
             end
@@ -143,7 +145,9 @@ function LibSVG:Compile(xml, group)
             object.canvas:SetAllPoints();
 
             if ( el.class == "g" ) then
+				print("entering group..");
                 svg:Compile(el, object);
+				print("exiting group..");
             elseif ( el.class == "circle" ) then
                 local sX, sY = nil, nil;
                 local radius = tonumber(el.args.r) or 10;
@@ -189,6 +193,7 @@ function LibSVG:Compile(xml, group)
 				table.insert(object.lines, {x, y, x, y+height});
 				table.insert(object.lines, {x+width, y, x+width, y+height});
 				table.insert(object.lines, {x, y+height, x+width, y+height});
+				svg.CompiledArgs = svg.CompiledArgs + 4;
             elseif ( el.class == "polygon" ) then
                 local sX, sY = nil,nil;
                 local fX, fY = nil, nil;
@@ -224,8 +229,8 @@ function LibSVG:Compile(xml, group)
                     sX = eX;
                     sY = eY;
                 end
-            elseif ( el.class == "text" ) then
-  --[[              sX = tonumber(el.args.x) or 0;
+--[[            elseif ( el.class == "text" ) then
+				sX = tonumber(el.args.x) or 0;
                 sY = tonumber(el.args.y) or 0;
                 if ( type(el.transformations) == "table" and #el.transformations ) then
                     for k, v in pairs(el.transformations) do
@@ -257,9 +262,10 @@ function LibSVG:Compile(xml, group)
       ]]    elseif ( el.class == "path" ) then
                 el.args.d = (el.args.d or "y") .. "0y0"; -- kludge
                 local sX, sY = 0,0;
+				local xX, xY = nil,nil;
                 local fX, fY = nil,nil;
                 for c, v in (el.args.d or ""):gmatch("(%a)([^%a]+)") do
-                    local coords = {};
+                    local coords = {}; print(c);
                     local rel = false;
                     if ( c == string.lower(c) ) then    -- If relative coords are sent, translate them
                         rel = true;
@@ -295,13 +301,25 @@ function LibSVG:Compile(xml, group)
                             sX = eX;
                             sY = eY;
                         end
-                    elseif ( c == "C" ) then
+					elseif ( c == "S" ) then
+						if ( rel ) then c = "c";
+						else c = "C";
+						end
+						print(2);
+						local dX, dY = 0, 0
+						if ( xX and xY ) then
+							dX, dY = sX-xX,sY-xY;
+						end
+						table.insert(coords, 1, {sX+dX, sY+dY});
+					end
+                    if ( c == "C" ) then
                         for i = 0, math.floor((#coords/3)-1) do
                             local p = (i*3)+1;
                             local p0 = {sX,sY};
                             local p1 = coords[p];
                             local p2 = coords[p+1];
                             local p3 = coords[p+2];
+							xX, xY = p3[1], p3[2]; -- Set control points for shorthand bezier curves.
                             if ( rel ) then
                                 p1[1] = p1[1] + sX;
                                 p1[2] = p1[2] + sY;
@@ -310,6 +328,7 @@ function LibSVG:Compile(xml, group)
                                 p3[1] = p3[1] + sX;
                                 p3[2] = p3[2] + sY;
                             end
+
 
                             -- Number of traces equals the shortest distance between the farthest points.
                             local trace = math.min(
@@ -709,13 +728,14 @@ end
 
 function LibSVG.ParseColor(color)
     if ( type(color) == "string" ) then
+		print(color);
 		color = color:gsub("%s", "");
         if ( color:sub(1,1) == "#" ) then
             local ret = {};
             if ( color:len() == 4 ) then
                 string.gsub(color, "([0-9a-f])", function (x) table.insert(ret, tonumber(x, 16) / 15); end);
             else
-                string.gsub(color, "([0-9a-f][0-9a-f])", function (x) table.insert(ret, tonumber(x, 16) / 255); end);
+                string.gsub(color, "([0-9a-fA-F][0-9a-fA-F])", function (x) table.insert(ret, tonumber(x, 16) / 255); end);
             end
             table.insert(ret, 1);
             return ret;
