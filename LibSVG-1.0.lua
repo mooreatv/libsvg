@@ -482,8 +482,10 @@ end
 function LibSVG:RenderReal(object)
 	local svg = self;
 	local now = GetTime();
+	svg.X = svg.X + 1;
 	--svg.CompiledData = svg.CompiledData or {};
 	local object = object or svg.CompiledData;
+	object.canvas:SetFrameLevel(svg.X);
 	if ( object.fill ) then
 		object.fillMatrix = {};
 	else
@@ -504,7 +506,7 @@ function LibSVG:RenderReal(object)
 					if ( v[i] ~= prev ) then
 						n = n + 1;
 						if ( math.fmod(n,2) == 0 ) then
-							LibSVG.DrawVLine(object.canvas,k,prev-1,v[i]+1,30, object.fill, "ARTWORK");
+							LibSVG.DrawVLine(object.canvas,k,prev-1,v[i]+1,24, object.fill, "BACKGROUND");
 						end
 					end
 					prev = v[i];
@@ -668,6 +670,39 @@ function LibSVG.DrawVLine(C, x, sy, ey, w, color, layer)
 	T:SetTexCoord(1, 0, 0, 0, 1, 1, 0, 1);
 	T:SetPoint("BOTTOMLEFT", C, relPoint, x-w/2, sy);
 	T:SetPoint("TOPRIGHT",   C, relPoint, x+w/2, ey);
+	T:Show()
+	return T
+end
+
+function LibSVG.DrawHLine(C, x, sy, ey, w, color, layer)
+	local relPoint = "BOTTOMLEFT"
+
+	if not C.SVG_Lines then
+		C.SVG_Lines={}
+		C.SVG_Lines_Used={}
+	end
+    if not color then
+        return;
+    end
+
+	local T = tremove(C.SVG_Lines) or C:CreateTexture(nil, layer or "ARTWORK")
+    T:SetTexture([[Interface\AddOns\l2r\Textures\line]]);
+    tinsert(C.SVG_Lines_Used,T)
+
+
+	T:SetDrawLayer(layer or "ARTWORK")
+
+	T:SetVertexColor(color[1],color[2],color[3],color[4]);
+
+	if sx>ex then
+		sx, ex = ex, sx
+	end
+
+	-- Set texture coordinates and anchors
+	T:ClearAllPoints();
+	T:SetTexCoord(0, 0, 0, 1, 1, 0, 1, 1);
+	T:SetPoint("BOTTOMLEFT", C, relPoint, sx, y-w/2);
+	T:SetPoint("TOPRIGHT",   C, relPoint, ex, y+w/2);
 	T:Show()
 	return T
 end
