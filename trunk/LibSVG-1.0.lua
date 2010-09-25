@@ -99,7 +99,7 @@ function LibSVG:Compile(xml, group)
                     table.insert(object.transformations, 1, {'m', tonumber(a),tonumber(b),tonumber(c),tonumber(d),tonumber(e),tonumber(f)});
                 end
             end
-            object.stroke = (tonumber((el.args['stroke-width'] or ""):match("([%d%.%-]+)")) or 0)*24
+            object.stroke = (tonumber((el.args['stroke-width'] or ""):match("([%d%.%-]+)")) or 0)*20
             if ( el.args['stroke-width'] == "none" ) then object.stroke = 0; end
             object.color = LibSVG.ParseColor(el.args.stroke);
             object.fill = LibSVG.ParseColor(el.args.fill);
@@ -124,7 +124,7 @@ function LibSVG:Compile(xml, group)
                 if ( style:match("stroke%-width:([%d%.%-]+)") ) then
                     if ( style:match("stroke%-width:(none)") ) then stroke = 0;
                     else
-                        object.stroke = (tonumber(style:match("stroke%-width:([%d%.%-]+)")) or 0)*24
+                        object.stroke = (tonumber(style:match("stroke%-width:([%d%.%-]+)")) or 0)*20
                     end
                 end
             end
@@ -225,7 +225,7 @@ function LibSVG:Compile(xml, group)
                     sY = eY;
                 end
             elseif ( el.class == "text" ) then
-                sX = tonumber(el.args.x) or 0;
+  --[[              sX = tonumber(el.args.x) or 0;
                 sY = tonumber(el.args.y) or 0;
                 if ( type(el.transformations) == "table" and #el.transformations ) then
                     for k, v in pairs(el.transformations) do
@@ -254,7 +254,7 @@ function LibSVG:Compile(xml, group)
                 caption:SetTextColor(unpack(fill));
 
                 print("mooo");
-            elseif ( el.class == "path" ) then
+      ]]    elseif ( el.class == "path" ) then
                 el.args.d = (el.args.d or "y") .. "0y0"; -- kludge
                 local sX, sY = 0,0;
                 local fX, fY = nil,nil;
@@ -506,8 +506,8 @@ function LibSVG:RenderReal(object)
 						if ( math.fmod(n,2) == 0 ) then
 							LibSVG.DrawVLine(object.canvas,k,prev-1,v[i]+1,30, object.fill, "ARTWORK");
 						end
-						prev = v[i];
 					end
+					prev = v[i];
 				end
 			end
 		end
@@ -534,9 +534,6 @@ local TAXIROUTE_LINEFACTOR = 128/126; -- Multiplying factor for texture coordina
 local TAXIROUTE_LINEFACTOR_2 = TAXIROUTE_LINEFACTOR / 2; -- Half of that
 
 function LibSVG.DrawLine(C, sx, sy, ex, ey, w, color, transforms, fmatrix)
-    if ( math.abs( sx - ex) < 1 and math.abs(sy - ey) < 1 ) then -- lines that don't go anywhere makes me a sad panda.
-        return;
-    end
     if ( type(transforms) == "table" and #transforms ) then
         for k, v in pairs(transforms) do
             if ( v[1] == 't' ) then
@@ -550,8 +547,8 @@ function LibSVG.DrawLine(C, sx, sy, ex, ey, w, color, transforms, fmatrix)
     sy = C:GetHeight() - sy;
     ey = C:GetHeight() - ey;
 
-    if ( sx < 0 ) then sx = math.floor(sx + 0.5); else sx = math.floor(sx - 0.5); end
-    if ( ex < 0 ) then ex = math.floor(ex + 0.5); else ex = math.floor(ex - 0.5); end
+    if ( sx < 0 ) then sx = math.floor(sx - 0.5); else sx = math.floor(sx + 0.5); end
+    if ( ex < 0 ) then ex = math.floor(ex - 0.5); else ex = math.floor(ex + 0.5); end
 
     local relPoint = "BOTTOMLEFT"
 
@@ -561,15 +558,18 @@ function LibSVG.DrawLine(C, sx, sy, ex, ey, w, color, transforms, fmatrix)
     local steps = math.abs(sx-ex);
 
 	if ( fmatrix) then
+		local py,px = nil, nil;
 		for i = 0, steps do
-			local x = sx + (( ex-sx ) * (i / steps));
+			local x = sx + ((ex-sx) * (i / steps));
 			local y = sy + ((ey-sy) * ( i / steps));
-			if ( x < 0 ) then x = math.floor(x + 0.5); else x = math.floor(x - 0.5); end
 			if ( y < 0 ) then y = math.floor(y + 0.5); else y = math.floor(y - 0.5); end
 			if ( not fmatrix[x] ) then fmatrix[x] = {}; end
-			table.insert(fmatrix[x], math.floor(y));
+			table.insert(fmatrix[x], y);
 		end
 	end
+	if ( math.abs( sx - ex) < 1 and math.abs(sy - ey) < 1 ) then -- lines that don't go anywhere makes me a sad panda.
+        return;
+    end
     if not C.SVG then
         C.SVG={}
         C.SVG_Used={}
