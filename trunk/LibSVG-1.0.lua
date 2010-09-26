@@ -101,7 +101,7 @@ function LibSVG:Compile(xml, group)
                     table.insert(object.transformations, 1, {'m', tonumber(a),tonumber(b),tonumber(c),tonumber(d),tonumber(e),tonumber(f)});
                 end
             end
-            object.stroke = (tonumber((el.args['stroke-width'] or ""):match("([%d%.%-]+)")) or 1.5)*20
+            object.stroke = (tonumber((el.args['stroke-width'] or ""):match("([%d%.%-]+)")) or 2)*20
             if ( el.args['stroke-width'] == "none" ) then object.stroke = 0; end
             object.color = LibSVG.ParseColor(el.args.stroke);
             object.fill = LibSVG.ParseColor(el.args.fill);
@@ -126,14 +126,13 @@ function LibSVG:Compile(xml, group)
                 if ( style:match("stroke%-width:([%d%.%-]+)") ) then
                     if ( style:match("stroke%-width:(none)") ) then stroke = 0;
                     else
-                        object.stroke = (tonumber(style:match("stroke%-width:([%d%.%-]+)")) or 1.5)*20
+                        object.stroke = (tonumber(style:match("stroke%-width:([%d%.%-]+)")) or 2)*20
                     end
                 end
             end
 			object.color = object.color or group.color;
 			object.stroke = object.stroke or group.stroke;
 			object.fill = object.fill or group.fill;
-
 
 			-- This is just debug stuff I use --
             --fill = nil;
@@ -260,7 +259,7 @@ function LibSVG:Compile(xml, group)
 
                 print("mooo");
       ]]    elseif ( el.class == "path" ) then
-                el.args.d = (el.args.d or "y") .. "0y0"; -- kludge
+                el.args.d = (el.args.d or "y") .. " 0y0"; -- kludge
                 local sX, sY = 0,0;
 				local xX, xY = nil,nil;
                 local fX, fY = nil,nil;
@@ -285,6 +284,9 @@ function LibSVG:Compile(xml, group)
                         end
                         fX = sX;
                         fY = sY;
+						eX,eY = sX,sY;
+						xX, xY = sX, sY;
+						table.insert(object.lines, {sX-2,sY-2,sX+2,sY+2});
                         if ( #coords > 1 ) then
                             table.remove(coords, 1);
                             c = "L";
@@ -302,24 +304,26 @@ function LibSVG:Compile(xml, group)
                             sY = eY;
                         end
 					elseif ( c == "S" ) then
-						if ( rel ) then c = "c";
-						else c = "C";
-						end
-						print(2);
+						c = "C";
 						local dX, dY = 0, 0
 						if ( xX and xY ) then
 							dX, dY = sX-xX,sY-xY;
 						end
-						table.insert(coords, 1, {sX+dX, sY+dY});
+						print("old point", xX, xY, "current", sX, sY, "reflected", sX+dX, sY+dY);
+						if ( not rel ) then
+							table.insert(coords, 1, {sX+dX, sY+dY});
+						else
+							table.insert(coords, 1, {dX, dY});
+						end
 					end
                     if ( c == "C" ) then
+						print("coords", #coords);
                         for i = 0, math.floor((#coords/3)-1) do
                             local p = (i*3)+1;
                             local p0 = {sX,sY};
                             local p1 = coords[p];
                             local p2 = coords[p+1];
                             local p3 = coords[p+2];
-							xX, xY = p3[1], p3[2]; -- Set control points for shorthand bezier curves.
                             if ( rel ) then
                                 p1[1] = p1[1] + sX;
                                 p1[2] = p1[2] + sY;
@@ -330,8 +334,9 @@ function LibSVG:Compile(xml, group)
                             end
 
 
+
                             -- Number of traces equals the shortest distance between the farthest points.
-                            local trace = math.min(
+                            local trace = 2 + math.min(
                                 math.abs(math.max(p0[1],p1[1],p2[1],p3[1]) - math.min(p0[1],p1[1],p2[1],p3[1])),
                                 math.abs(math.max(p0[2],p1[2],p2[2],p3[2]) - math.min(p0[2],p1[2],p2[2],p3[2]))
                             )/2;
@@ -354,6 +359,8 @@ function LibSVG:Compile(xml, group)
                                 sX = eX;
                                 sY = eY;
                             end
+							xX, xY = p2[1], p2[2]; -- Set control points for shorthand bezier curves.
+							sX, sY = p3[1], p3[2]
                         end
                     elseif ( c == "Q" ) then
                         for i = 0, math.floor((#coords/3)-1) do
@@ -462,9 +469,11 @@ function LibSVG:Compile(xml, group)
                         end
                     elseif ( c == "Z" ) then
                         if ( fX and fY and eX and eY ) then
-							table.insert(object.lines, {sX, sY, eX, eY});
+							table.insert(object.lines, {eX,eY,fX,fY});
 							svg.CompiledArgs = svg.CompiledArgs + 1;
+							print("Closing", eX,eY,fX,fY);
                         end
+
                         sX = eX;
                         sY = eY;
                         fX = sX;
@@ -474,6 +483,8 @@ function LibSVG:Compile(xml, group)
                         sY = eY;
                         fX = sX;
                         fY = sY;
+						xX = nil;
+						xY = nil;
                         break;
                     end
                 end
