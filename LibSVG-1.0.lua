@@ -13,13 +13,24 @@ if ( dofile ) then
 	dofile([[..\LibXML-1.0\LibXML-1.0.lua]]);
 end
 
-
+local TextureDirectory = "";
 local LIBSVG = "LibSVG-1.0"
 local LIBSVG_MINOR = tonumber(("$Rev: 0@project-revision@ $"):match("(%d+)")) or 10000;
 if not LibStub then error(LIBSVG .. " requires LibStub.") end
 local LibSVG = LibStub:NewLibrary(LIBSVG, LIBSVG_MINOR)
 local LibXML = LibStub("LibXML-1.0");
 if not LibXML then error(LIBSVG .. " requires LibXML-1.0.") end
+LibSVG.line = "";
+do
+	local path = string.match(debugstack(1,1,0), "AddOns\\(.+)LibSVG%-1%.0%.lua");
+	if path then
+		LibSVG.line = [[Interface\AddOns\]] .. path .. [[line]];
+		print(LibSVG.line);
+	else
+		error(LIBSVG.." cannot determine the folder it is located in because the path is too long and got truncated in the debugstack(1,1,0) function call")
+	end
+end
+
 
 LibSVG.colors = {
         red       = {1,0,0,1},
@@ -31,6 +42,7 @@ LibSVG.colors = {
         purple    = {1,0,1,1},
         maroon    = {0.5,0,0,1},
     };
+
 
 function LibSVG:New()
 	local svg = {};
@@ -79,7 +91,6 @@ function LibSVG:Compile(xml, group)
 	for i = 1, #xml do
 		local el = xml[i];
         if ( type(el) == "table" ) then
-			print(el, el.class, el.empty);
 			local object = { };
             el.args = el.args or {};
             object.fillMatrix = {};
@@ -101,7 +112,7 @@ function LibSVG:Compile(xml, group)
                     table.insert(object.transformations, 1, {'m', tonumber(a),tonumber(b),tonumber(c),tonumber(d),tonumber(e),tonumber(f)});
                 end
             end
-            object.stroke = (tonumber((el.args['stroke-width'] or ""):match("([%d%.%-]+)")) or 2)*20
+            object.stroke = (tonumber((el.args['stroke-width'] or ""):match("([%d%.%-]+)")) or 2)*1
             if ( el.args['stroke-width'] == "none" ) then object.stroke = 0; end
             object.color = LibSVG.ParseColor(el.args.stroke);
             object.fill = LibSVG.ParseColor(el.args.fill);
@@ -126,7 +137,7 @@ function LibSVG:Compile(xml, group)
                 if ( style:match("stroke%-width:([%d%.%-]+)") ) then
                     if ( style:match("stroke%-width:(none)") ) then stroke = 0;
                     else
-                        object.stroke = (tonumber(style:match("stroke%-width:([%d%.%-]+)")) or 2)*20
+                        object.stroke = (tonumber(style:match("stroke%-width:([%d%.%-]+)")) or 2)*1
                     end
                 end
             end
@@ -144,9 +155,7 @@ function LibSVG:Compile(xml, group)
             object.canvas:SetAllPoints();
 
             if ( el.class == "g" ) then
-				print("entering group..");
                 svg:Compile(el, object);
-				print("exiting group..");
             elseif ( el.class == "circle" ) then
                 local sX, sY = nil, nil;
                 local radius = tonumber(el.args.r) or 10;
@@ -264,7 +273,7 @@ function LibSVG:Compile(xml, group)
 				local xX, xY = nil,nil;
                 local fX, fY = nil,nil;
                 for c, v in (el.args.d or ""):gmatch("(%a)([^%a]+)") do
-                    local coords = {}; print(c);
+                    local coords = {};
                     local rel = false;
                     if ( c == string.lower(c) ) then    -- If relative coords are sent, translate them
                         rel = true;
@@ -317,7 +326,6 @@ function LibSVG:Compile(xml, group)
 						end
 					end
                     if ( c == "C" ) then
-						print("coords", #coords);
                         for i = 0, math.floor((#coords/3)-1) do
                             local p = (i*3)+1;
                             local p0 = {sX,sY};
@@ -339,7 +347,8 @@ function LibSVG:Compile(xml, group)
                             local trace = 2 + math.min(
                                 math.abs(math.max(p0[1],p1[1],p2[1],p3[1]) - math.min(p0[1],p1[1],p2[1],p3[1])),
                                 math.abs(math.max(p0[2],p1[2],p2[2],p3[2]) - math.min(p0[2],p1[2],p2[2],p3[2]))
-                            )/2;
+                            );
+							local pangle = nil;
                             for n = 1, trace do
                                 local t = n / trace;
                                 eX =
@@ -354,10 +363,14 @@ function LibSVG:Compile(xml, group)
                                     ( 3 * (1-t) * math.pow(t,2) * p2[2] ) +
                                     ( math.pow(t, 3) * p3[2] )
                                     ;
-								table.insert(object.lines, {sX, sY, eX, eY});
-								svg.CompiledArgs = svg.CompiledArgs + 1;
-                                sX = eX;
-                                sY = eY;
+								local cangle = math.deg(math.tan((eY-sY)/(eX-sX)));
+								if ( pangle == nil or math.abs(pangle-cangle) > 2 or n == trace ) then
+									table.insert(object.lines, {sX, sY, eX, eY});
+									svg.CompiledArgs = svg.CompiledArgs + 1;
+									sX = eX;
+									sY = eY;
+									pangle = cangle;
+								end
                             end
 							xX, xY = p2[1], p2[2]; -- Set control points for shorthand bezier curves.
 							sX, sY = p3[1], p3[2]
@@ -451,16 +464,21 @@ function LibSVG:Compile(xml, group)
                             angleExtent = math.fmod(angleExtent, 360);
                             angleStart = math.fmod(angleStart, 360);
                             local m = math.max(rX, rY)/2;
+							local pangle = nil;
                             for n = 1, m do
                                 local a = math.rad(-angleStart - (angleExtent * (n/m)));
                                 local eX = (math.cos(a) * rX) + cx;
                                 local eY = -(math.sin(a) * rY) + cy;
-                                if ( sX and sY ) then
-									table.insert(object.lines, {sX, sY, eX, eY});
-									svg.CompiledArgs = svg.CompiledArgs + 1;
-                                end
-                                sX = eX;
-                                sY = eY;
+								local cangle = math.deg(math.tan((eY-sY)/(eX-sX)));
+								if ( pangle == nil or math.abs(pangle-cangle) > 2 or n == trace ) then
+									if ( sX and sY ) then
+										table.insert(object.lines, {sX, sY, eX, eY});
+										svg.CompiledArgs = svg.CompiledArgs + 1;
+									end
+									sX = eX;
+									sY = eY;
+									pangle = cangle;
+								end
                             end
                             sX = x;
                             sY = y;
@@ -471,7 +489,7 @@ function LibSVG:Compile(xml, group)
                         if ( fX and fY and eX and eY ) then
 							table.insert(object.lines, {eX,eY,fX,fY});
 							svg.CompiledArgs = svg.CompiledArgs + 1;
-							print("Closing", eX,eY,fX,fY);
+						--	print("Closing", eX,eY,fX,fY);
                         end
 
                         sX = eX;
@@ -536,7 +554,7 @@ function LibSVG:RenderReal(object)
 					if ( v[i] ~= prev ) then
 						n = n + 1;
 						if ( math.fmod(n,2) == 0 ) then
-							LibSVG.DrawVLine(object.canvas,k,prev,v[i]+1,24, object.fill, "BACKGROUND");
+							LibSVG.DrawVLine(object.canvas,k,prev,v[i],1, object.fill, "BACKGROUND");
 						end
 					end
 					prev = v[i];
@@ -562,8 +580,6 @@ end
 
 
 -- Borrowed from LibGraph et al. (and heavilly modified)
-local TAXIROUTE_LINEFACTOR = 128/126; -- Multiplying factor for texture coordinates
-local TAXIROUTE_LINEFACTOR_2 = TAXIROUTE_LINEFACTOR / 2; -- Half of that
 
 function LibSVG.DrawLine(C, sx, sy, ex, ey, w, color, transforms, fmatrix)
     if ( type(transforms) == "table" and #transforms ) then
@@ -581,17 +597,25 @@ function LibSVG.DrawLine(C, sx, sy, ex, ey, w, color, transforms, fmatrix)
 
     if ( sx < 0 ) then sx = math.floor(sx - 0.5); else sx = math.floor(sx + 0.5); end
     if ( ex < 0 ) then ex = math.floor(ex - 0.5); else ex = math.floor(ex + 0.5); end
+	if ( sy < 0 ) then sy = math.floor(sy - 0.5); else sy = math.floor(sy + 0.5); end
+    if ( ey < 0 ) then ey = math.floor(ey - 0.5); else ey = math.floor(ey + 0.5); end
+
 
     local relPoint = "BOTTOMLEFT"
 
     if sx==ex then
         return LibSVG.DrawVLine(C,sx,sy,ey,w, color)
     end
-    local steps = math.abs(sx-ex);
+	if sy==ey then
+        return LibSVG.DrawHLine(C,sy,sx,ex,w, color, "ARTWORK", fmatrix)
+    end
+	w = w * 32 * (256/254);
+
+    local steps = math.abs(sx-ex) or 1;
 
 	if ( fmatrix) then
 		local py,px = nil, nil;
-		for i = 0, steps do
+		for i = 1, steps do
 			local x = sx + ((ex-sx) * (i / steps));
 			local y = sy + ((ey-sy) * ( i / steps));
 			if ( y < 0 ) then y = math.floor(y + 0.5); else y = math.floor(y - 0.5); end
@@ -606,9 +630,12 @@ function LibSVG.DrawLine(C, sx, sy, ex, ey, w, color, transforms, fmatrix)
         C.SVG={}
         C.SVG_Used={}
     end
+
     if not color or w == 0 then
         return;
     end
+
+
 
     -- Determine dimensions and center point of line
     local dx,dy = ex - sx, ey - sy;
@@ -619,6 +646,7 @@ function LibSVG.DrawLine(C, sx, sy, ex, ey, w, color, transforms, fmatrix)
         dx,dy = -dx,-dy;
     end
 
+	local Z = (256/255) / 2;
     -- Calculate actual length of line
     local l = sqrt((dx * dx) + (dy * dy));
 
@@ -626,51 +654,44 @@ function LibSVG.DrawLine(C, sx, sy, ex, ey, w, color, transforms, fmatrix)
     local s,c = -dy / l, dx / l;
     local sc = s * c;
 
-    -- Calculate bounding box size and texture coordinates
-    local Bwid, Bhgt, BLx, BLy, TLx, TLy, TRx, TRy, BRx, BRy;
-	w = w/2;
-    if (dy >= 0) then
-        Bwid = ((l * c) - (w * s)) * TAXIROUTE_LINEFACTOR_2;
-        Bhgt = ((w * c) - (l * s)) * TAXIROUTE_LINEFACTOR_2;
-        BLx, BLy, BRy = (w / l) * sc, s * s, (l / w) * sc;
-        BRx, TLx, TLy, TRx = 1 - BLy, BLy, 1 - BRy, 1 - BLx;
-        TRy = BRx;
-    else
-        Bwid = ((l * c) + (w * s)) * TAXIROUTE_LINEFACTOR_2;
-        Bhgt = ((w * c) + (l * s)) * TAXIROUTE_LINEFACTOR_2;
-        BLx, BLy, BRx = s * s, -(l / w) * sc, 1 + (w / l) * sc;
-        BRy, TLx, TLy, TRy = BLx, 1 - BRx, 1 - BLx, 1 - BLy;
-        TRx = TLy;
-    end
 
-    -- Thanks Blizzard for adding (-)10000 as a hard-cap and throwing errors!
-    -- The cap was added in 3.1.0 and I think it was upped in 3.1.1
-    --  (way less chance to get the error)
-    if TLx > 10000 then TLx = 10000 elseif TLx < -10000 then TLx = -10000 end
-    if TLy > 10000 then TLy = 10000 elseif TLy < -10000 then TLy = -10000 end
-    if BLx > 10000 then BLx = 10000 elseif BLx < -10000 then BLx = -10000 end
-    if BLy > 10000 then BLy = 10000 elseif BLy < -10000 then BLy = -10000 end
-    if TRx > 10000 then TRx = 10000 elseif TRx < -10000 then TRx = -10000 end
-    if TRy > 10000 then TRy = 10000 elseif TRy < -10000 then TRy = -10000 end
-    if BRx > 10000 then BRx = 10000 elseif BRx < -10000 then BRx = -10000 end
-    if BRy > 10000 then BRy = 10000 elseif BRy < -10000 then BRy = -10000 end
+	local Bwid, Bhgt, BLx, BLy, TLx, TLy, TRx, TRy, BRx, BRy;
+	if (dy >= 0) then
+		Bwid = ((l * c) - (w * s)) * Z;
+		Bhgt = ((w * c) - (l * s)) * Z;
+		BLx, BLy, BRy = (w / l) * sc, s * s, (l / w) * sc;
+		BRx, TLx, TLy, TRx = 1 - BLy, BLy, 1 - BRy, 1 - BLx;
+		TRy = BRx;
+	else
+		Bwid = ((l * c) + (w * s)) * Z;
+		Bhgt = ((w * c) + (l * s)) * Z;
+		BLx, BLy, BRx = s * s, -(l / w) * sc, 1 + (w / l) * sc;
+		BRy, TLx, TLy, TRy = BLx, 1 - BRx, 1 - BLx, 1 - BLy;
+		TRx = TLy;
+	end
 
 
-    local T = tremove(C.SVG) or C:CreateTexture(nil, layer or "ARTWORK")
-    T:SetTexture([[Interface\AddOns\l2r\Textures\line]]);
+    local T = tremove(C.SVG) or C:CreateTexture(nil, "ARTWORK")
+    T:SetTexture(LibSVG.line);
     tinsert(C.SVG_Used,T)
 
     T:SetDrawLayer(layer or "ARTWORK")
-
     T:SetVertexColor(color[1],color[2],color[3],color[4]);
 
     -- Set texture coordinates and anchors
+
+	T:SetTexCoord(TLx, TLy, BLx, BLy, TRx, TRy, BRx, BRy);
+	--local h = 128 / w;
+	--T:SetTexCoord(1, 1, 0.5 - h, 0.5 + h);
+	--T:SetRotation(math.tan(dy/dx));
     T:SetPoint("BOTTOMLEFT", C, relPoint, cx - Bwid, cy - Bhgt);
     T:SetPoint("TOPRIGHT",   C, relPoint, cx + Bwid, cy + Bhgt);
-    T:SetTexCoord(TLx, TLy, BLx, BLy, TRx, TRy, BRx, BRy);
+
     T:Show()
     return T
 end
+
+
 
 function LibSVG.DrawVLine(C, x, sy, ey, w, color, layer)
 	local relPoint = "BOTTOMLEFT"
@@ -682,9 +703,9 @@ function LibSVG.DrawVLine(C, x, sy, ey, w, color, layer)
     if not color then
         return;
     end
-
+	--w = w * 32 * (256/254);
 	local T = tremove(C.SVG_Lines) or C:CreateTexture(nil, layer or "ARTWORK")
-    T:SetTexture([[Interface\AddOns\l2r\Textures\line]]);
+    T:SetTexture([[Interface\BUTTONS\WHITE8X8]]);
     tinsert(C.SVG_Lines_Used,T)
 
 	T:SetDrawLayer(layer or "ARTWORK")
@@ -704,19 +725,28 @@ function LibSVG.DrawVLine(C, x, sy, ey, w, color, layer)
 	return T
 end
 
-function LibSVG.DrawHLine(C, y, sx, ex, w, color, layer)
+function LibSVG.DrawHLine(C, y, sx, ex, w, color, layer, fmatrix)
 	local relPoint = "BOTTOMLEFT"
-
+	print(1);
 	if not C.SVG_Lines then
 		C.SVG_Lines={}
 		C.SVG_Lines_Used={}
 	end
-    if not color then
+
+
+	if ( fmatrix) then
+		for i = math.min(sx,ex), math.max(ex,sx) do
+			if ( not fmatrix[i] ) then fmatrix[i] = {}; end
+			table.insert(fmatrix[i], y);
+		end
+	end
+
+	if not color then
         return;
     end
 
 	local T = tremove(C.SVG_Lines) or C:CreateTexture(nil, layer or "ARTWORK")
-    T:SetTexture([[Interface\AddOns\l2r\Textures\line]]);
+    T:SetTexture([[Interface\BUTTONS\WHITE8X8]]);
     tinsert(C.SVG_Lines_Used,T)
 
 
@@ -739,7 +769,6 @@ end
 
 function LibSVG.ParseColor(color)
     if ( type(color) == "string" ) then
-		print(color);
 		color = color:gsub("%s", "");
         if ( color:sub(1,1) == "#" ) then
             local ret = {};
