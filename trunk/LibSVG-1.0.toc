@@ -4,7 +4,7 @@
 ## Author: Humbedooh
 ## X-Max-Interface: 40000
 ## X-Min-Interface: 30000
-## X-Compatible-With: 400000
+## X-Compatible-With: 40000
 LibStub\LibStub.lua
 LibXML\LibXML-1.0.lua
 LibSVG-1.0.lua
