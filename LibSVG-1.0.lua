@@ -536,7 +536,7 @@ function LibSVG:RenderReal(object)
 					if ( v[i] ~= prev ) then
 						n = n + 1;
 						if ( math.fmod(n,2) == 0 ) then
-							LibSVG.DrawVLine(object.canvas,k,prev-1,v[i]+1,24, object.fill, "BACKGROUND");
+							LibSVG.DrawVLine(object.canvas,k,prev,v[i]+1,24, object.fill, "BACKGROUND");
 						end
 					end
 					prev = v[i];
@@ -704,7 +704,7 @@ function LibSVG.DrawVLine(C, x, sy, ey, w, color, layer)
 	return T
 end
 
-function LibSVG.DrawHLine(C, x, sy, ey, w, color, layer)
+function LibSVG.DrawHLine(C, y, sx, ex, w, color, layer)
 	local relPoint = "BOTTOMLEFT"
 
 	if not C.SVG_Lines then
