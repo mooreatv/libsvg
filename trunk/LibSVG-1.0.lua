@@ -578,7 +578,7 @@ function LibSVG:RenderReal(object)
 						if ( Y ~= prev ) then
 							n = n + 1;
 							if ( math.fmod(n,2) == 0 ) then
-								LibSVG.DrawVLine(object.canvas,k,prev,Y,2, object.fill, "BACKGROUND");
+								LibSVG.DrawVLine(object.canvas,k,prev+1,Y+1,2, object.fill, "BACKGROUND");
 							end
 						end
 						prev = Y;
