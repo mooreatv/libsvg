@@ -11,6 +11,7 @@ License: MIT License
 if ( dofile ) then
     dofile([[..\LibStub\LibStub.lua]]);
 	dofile([[..\LibXML-1.0\LibXML-1.0.lua]]);
+	_G.debugstack = function() return "AddOns\\Moo\\LibSVG-1.0.lua" end;
 end
 
 local TextureDirectory = "";
@@ -53,6 +54,9 @@ function LibSVG:New()
 	svg.Compile = LibSVG.Compile;
 	svg.Render = LibSVG.Render;
 	svg.RenderReal = LibSVG.RenderReal;
+	svg.CompileDefs = LibSVG.CompileDefs;
+	svg.DrawLine = LibSVG.DrawLine;
+	svg.DrawVLine = LibSVG.DrawVLine;
 	svg.canvas = CreateFrame("Frame", nil);
 	return svg;
 end
@@ -76,6 +80,42 @@ function LibSVG:Parse(xml)
 				svg.xml = v;
 				break;
 			end
+		end
+	end
+end
+
+function LibSVG:CompileDefs(xml)
+	local svg = self;
+	svg.defs = svg.defs or {};
+	for i = 1, #xml do
+		local el = xml[i];
+		if ( el.class:lower() == "lineargradient" ) then
+			local def = { type = 'lineargradient', id = el.args.id, points = {} };
+			for j = 1, #el do
+				local arg = el[j];
+				if ( arg.class == "stop" ) then
+					local x = {};
+					x.offset = tonumber(arg.args.offset) or 0;
+					if ( arg.args.style ) then
+						x.color = LibSVG.ParseColor(arg.args.style:match("stop%-color:([^;]+)"));
+						x.opacity = tonumber(arg.args.style:match("stop%-opacity:([^;]+)")) or 1;
+					end
+					table.insert(def.points, x);
+				end
+			end
+			if ( el.args['xlink:href'] and el.args['xlink:href']:sub(1,1) == "#" ) then
+				for n = 1, #svg.defs do
+					local link = svg.defs[n];
+					if ( link.id == el.args['xlink:href']:sub(2) ) then
+						def.points = link.points;
+						--print(def.id, "points to", link.id);
+						break;
+					end
+				end
+			end
+			def.x1, def.y1, def.x2, def.y2 = tonumber(el.args.x1) or 0,tonumber(el.args.y1) or 0,tonumber(el.args.x2) or 0,tonumber(el.args.y2) or 0;
+			table.insert(svg.defs, def);
+			--print("Added definition:", def.id);
 		end
 	end
 end
@@ -157,7 +197,9 @@ function LibSVG:Compile(xml, group)
             object.canvas:SetParent(svg.canvas);
             object.canvas:SetAllPoints();
 
-            if ( el.class == "g" ) then
+			if ( el.class == "defs" ) then
+				self:CompileDefs(el);
+            elseif ( el.class == "g" ) then
                 svg:Compile(el, object);
             elseif ( el.class == "circle" ) then
                 local sX, sY = nil, nil;
@@ -228,7 +270,7 @@ function LibSVG:Compile(xml, group)
                     end
                 end
                 if ( fX ~= nil and eX ~= nil ) then
-                    LibSVG.DrawLine(canvas, fX, fY, eX, eY, stroke, color, el.transformations, el.tracePaths);
+                    self:DrawLine(canvas, fX, fY, eX, eY, stroke, color, el.transformations, el.tracePaths);
                 end
 
             elseif ( el.class == "polyline" ) then
@@ -525,7 +567,7 @@ function LibSVG:Render()
 	svg.canvas:SetScript("OnUpdate",
 		function()
 			local ret,err = coroutine.resume(co);
-			--print(ret, err);
+			print(ret, err);
 			if ( ret == false ) then
 				svg.canvas:SetScript("OnUpdate", nil);
 			end
@@ -545,10 +587,18 @@ function LibSVG:RenderReal(object)
 	else
 		object.tracePaths = nil;
 	end
+	object.bbox = {0,0,1,1};
 	if ( object.lines ) then
+		local bbox = {0,0,0,0};
 		for key, line in pairs(object.lines) do
-			LibSVG.DrawLine(object.canvas, tonumber(line[1]), tonumber(line[2]), tonumber(line[3]), tonumber(line[4]), object.stroke, object.color, object.transformations, object.tracePaths);
+			local ax,ay,bx,by = tonumber(line[1]), tonumber(line[2]), tonumber(line[3]), tonumber(line[4]);
+			if ( ax < bbox[1] ) then bbox[1] = ax; end if ( ax > bbox[3] ) then bbox[3] = ax; end
+			if ( bx < bbox[1] ) then bbox[1] = bx; end if ( bx > bbox[3] ) then bbox[3] = bx; end
+			if ( ay < bbox[2] ) then bbox[2] = ay; end if ( ay > bbox[4] ) then bbox[4] = ay; end
+			if ( by < bbox[2] ) then bbox[2] = by; end if ( by > bbox[4] ) then bbox[4] = by; end
+			self:DrawLine(object.canvas, ax,ay,bx,by, object.stroke, object.color, object.transformations, object.tracePaths);
 		end
+		object.bbox = bbox;
 	end
 	if ( object.fill ) then
 		if ( object.fillPath ) then
@@ -563,7 +613,10 @@ function LibSVG:RenderReal(object)
 				T:SetTexture([[Interface\BUTTONS\WHITE8X8]]);
 				tinsert(C.SVG_Lines_Used,T)
 				T:SetDrawLayer("BACKGROUND");
-				T:SetVertexColor(color[1],color[2],color[3],color[4]);
+				if ( not color.def ) then
+					T:SetVertexColor(color[1],color[2],color[3],color[4]);
+				else
+				end
 				T:ClearAllPoints();
 				T:SetTexCoord(0,1,0,1);
 				T:SetPoint("TOPLEFT", C, "TOPLEFT", ax, -ay);
@@ -579,7 +632,10 @@ function LibSVG:RenderReal(object)
 				T:SetTexture(LibSVG.circle);
 				tinsert(C.SVG_Lines_Used,T)
 				T:SetDrawLayer("BACKGROUND");
-				T:SetVertexColor(color[1],color[2],color[3],color[4]);
+				if ( not color.def ) then
+					T:SetVertexColor(color[1],color[2],color[3],color[4]);
+				else
+				end
 				T:ClearAllPoints();
 				T:SetTexCoord(0,1,0,1);
 				T:SetPoint("TOPLEFT", C, "TOPLEFT", ax, -ay);
@@ -597,7 +653,7 @@ function LibSVG:RenderReal(object)
 						if ( Y ~= prev ) then
 							n = n + 1;
 							if ( math.fmod(n,2) == 0 ) then
-								LibSVG.DrawVLine(object.canvas,k,prev+1,Y+1,2, object.fill, "BACKGROUND");
+								self:DrawVLine(object.canvas,k,prev+1,Y+1,2, object.fill, "BACKGROUND", object.bbox);
 							end
 						end
 						prev = Y;
@@ -631,7 +687,7 @@ end
 
 -- Borrowed from LibGraph et al. (and heavilly modified)
 
-function LibSVG.DrawLine(C, sx, sy, ex, ey, w, color, transforms, tracePaths)
+function LibSVG:DrawLine(C, sx, sy, ex, ey, w, color, transforms, tracePaths)
 	sx,sy = LibSVG.transform(transforms, sx, sy);
 	ex,ey = LibSVG.transform(transforms, ex, ey);
 
@@ -655,7 +711,7 @@ function LibSVG.DrawLine(C, sx, sy, ex, ey, w, color, transforms, tracePaths)
 	end
 
     if sx==ex then
-        return LibSVG.DrawVLine(C,sx,sy,ey,w, color)
+        return self:DrawVLine(C,sx,sy,ey,w, color)
     end
 	if sy==ey then
         return LibSVG.DrawHLine(C,sy,sx,ex,w, color, "ARTWORK", tracePaths)
@@ -730,8 +786,9 @@ end
 
 
 
-function LibSVG.DrawVLine(C, x, sy, ey, w, color, layer)
+function LibSVG:DrawVLine(C, x, sy, ey, w, color, layer, bbox)
 	local relPoint = "BOTTOMLEFT"
+	local svg = self;
 
 	if not C.SVG_Lines then
 		C.SVG_Lines={}
@@ -747,10 +804,26 @@ function LibSVG.DrawVLine(C, x, sy, ey, w, color, layer)
 
 	T:SetDrawLayer(layer or "ARTWORK")
 
-	T:SetVertexColor(color[1],color[2],color[3],color[4]);
-
 	if sy>ey then
 		sy, ey = ey, sy
+	end
+
+	if ( not color.def ) then
+		T:SetVertexColor(color[1],color[2],color[3],color[4]);
+	else
+		local def = nil;
+		for i = 1, #self.defs do
+			if ( color.def == self.defs[i].id ) then
+				def = self.defs[i];
+				break;
+			end
+		end
+		if ( def ) then
+			local sY, eY = bbox[2], bbox[4];
+			local sopacity, scolor = def.points[1].opacity * (color[4] or 1), def.points[1].color;
+			local eopacity, ecolor = def.points[#def.points].opacity * (color[4] or 1), def.points[#def.points].color;
+			T:SetGradientAlpha("vertical", scolor[1], scolor[2],scolor[3], sopacity, ecolor[1], ecolor[2],ecolor[3], eopacity);
+		end
 	end
 
 	-- Set texture coordinates and anchors
@@ -807,6 +880,9 @@ function LibSVG.ParseColor(color)
             end
             table.insert(ret, 1);
             return ret;
+		elseif ( color:match("url%(#([^%)]+)%)") ) then
+            local ret = color:match("url%(#([^%)]+)%)")
+            return {def = ret};
         elseif ( color:match("%((%d+),(%d+),(%d+)%)") ) then
             local ret = {color:match("%((%d+),(%d+),(%d+)%)")};
             table.insert(ret,1);
