@@ -93,7 +93,7 @@ function LibSVG:Compile(xml, group)
         if ( type(el) == "table" ) then
 			local object = { };
             el.args = el.args or {};
-            object.fillMatrix = {};
+            object.tracePaths = {};
 			object.lines = {};
             object.transformations = object.transformations or {};
 			table.insert(group.children, object);
@@ -221,7 +221,7 @@ function LibSVG:Compile(xml, group)
                     end
                 end
                 if ( fX ~= nil and eX ~= nil ) then
-                    LibSVG.DrawLine(canvas, fX, fY, eX, eY, stroke, color, el.transformations, el.fillMatrix);
+                    LibSVG.DrawLine(canvas, fX, fY, eX, eY, stroke, color, el.transformations, el.tracePaths);
                 end
 
             elseif ( el.class == "polyline" ) then
@@ -341,13 +341,11 @@ function LibSVG:Compile(xml, group)
                                 p3[2] = p3[2] + sY;
                             end
 
-
-
                             -- Number of traces equals the shortest distance between the farthest points.
-                            local trace = 2 + math.min(
+                            local trace = math.floor(2 + math.min(
                                 math.abs(math.max(p0[1],p1[1],p2[1],p3[1]) - math.min(p0[1],p1[1],p2[1],p3[1])),
                                 math.abs(math.max(p0[2],p1[2],p2[2],p3[2]) - math.min(p0[2],p1[2],p2[2],p3[2]))
-                            );
+                            ));
 							local pangle = nil;
                             for n = 1, trace do
                                 local t = n / trace;
@@ -363,8 +361,8 @@ function LibSVG:Compile(xml, group)
                                     ( 3 * (1-t) * math.pow(t,2) * p2[2] ) +
                                     ( math.pow(t, 3) * p3[2] )
                                     ;
-								local cangle = math.deg(math.tan((eY-sY)/(eX-sX)));
-								if ( pangle == nil or math.abs(pangle-cangle) > 2 or n == trace ) then
+								local cangle = math.deg(math.atan((eY-sY)/(eX-sX)));
+								if ( pangle == nil or math.abs(pangle-cangle) > 1 or n == trace ) then
 									table.insert(object.lines, {sX, sY, eX, eY});
 									svg.CompiledArgs = svg.CompiledArgs + 1;
 									sX = eX;
@@ -455,26 +453,26 @@ function LibSVG:Compile(xml, group)
                             sign = 1;
                             if (ux * vy - uy * vx < 0) then sign = -1; end
 
-                            local angleExtent = math.deg(sign * math.acos(p / n));
+                            local angleExtent = (sign * math.acos(p / n));
                             if (sweep_flag == 0 and angleExtent > 0) then
-                                angleExtent = angleExtent - 360;
+                                angleExtent = angleExtent - (math.pi*2);
                             elseif (sweep_flag == 1 and angleExtent < 0) then
-                                    angleExtent = angleExtent + 360;
+                                    angleExtent = angleExtent + (math.pi*2);
                             end
-                            angleExtent = math.fmod(angleExtent, 360);
-                            angleStart = math.fmod(angleStart, 360);
-                            local m = math.max(rX, rY)/2;
+                            angleExtent = math.fmod(angleExtent, math.pi*2);
+                            angleStart = math.fmod(angleStart, math.pi*2);
+                            local m = math.floor(math.max(rX, rY)*2);
 							local pangle = nil;
                             for n = 1, m do
-                                local a = math.rad(-angleStart - (angleExtent * (n/m)));
+                                local a = (-angleStart - (angleExtent * n / m));
                                 local eX = (math.cos(a) * rX) + cx;
                                 local eY = -(math.sin(a) * rY) + cy;
-								local cangle = math.deg(math.tan((eY-sY)/(eX-sX)));
-								if ( pangle == nil or math.abs(pangle-cangle) > 2 or n == trace ) then
-									if ( sX and sY ) then
+								local cangle = math.deg(math.atan((eY-sY)/(eX-sX)));
+								if ( pangle == nil or math.abs(pangle-cangle) > 1 or n == m ) then
+									--if ( sX and sY ) then
 										table.insert(object.lines, {sX, sY, eX, eY});
 										svg.CompiledArgs = svg.CompiledArgs + 1;
-									end
+									--end
 									sX = eX;
 									sY = eY;
 									pangle = cangle;
@@ -519,7 +517,8 @@ function LibSVG:Render()
 	local co = coroutine.create(function() svg:RenderReal(); end);
 	svg.canvas:SetScript("OnUpdate",
 		function()
-			local ret = coroutine.resume(co);
+			local ret,moo = coroutine.resume(co);
+		--	print(ret, moo);
 			if ( ret == false ) then
 				svg.canvas:SetScript("OnUpdate", nil);
 			end
@@ -535,29 +534,30 @@ function LibSVG:RenderReal(object)
 	local object = object or svg.CompiledData;
 	object.canvas:SetFrameLevel(svg.X);
 	if ( object.fill ) then
-		object.fillMatrix = {};
+		object.tracePaths = {};
 	else
-		object.fillMatrix = nil;
+		object.tracePaths = nil;
 	end
 	if ( object.lines ) then
 		for key, line in pairs(object.lines) do
-			LibSVG.DrawLine(object.canvas, tonumber(line[1]), tonumber(line[2]), tonumber(line[3]), tonumber(line[4]), object.stroke, object.color, object.transformations, object.fillMatrix);
+			LibSVG.DrawLine(object.canvas, tonumber(line[1]), tonumber(line[2]), tonumber(line[3]), tonumber(line[4]), object.stroke, object.color, object.transformations, object.tracePaths);
 		end
 	end
 	if ( object.fill ) then
-		for k, v in pairs(object.fillMatrix) do
+		for k, v in pairs(object.tracePaths) do
 			if ( #v > 1 ) then
 				table.sort(v);
-				local prev = v[1];
+				local prev = v[#v];
 				local n = 1;
-				for i = 2, #v do
-					if ( v[i] ~= prev ) then
+				for i = 1, #v-1 do
+					local Y = v[#v-i];
+					if ( Y ~= prev ) then
 						n = n + 1;
 						if ( math.fmod(n,2) == 0 ) then
-							LibSVG.DrawVLine(object.canvas,k,prev,v[i],1, object.fill, "BACKGROUND");
+							LibSVG.DrawVLine(object.canvas,k,prev,Y,2, object.fill, "BACKGROUND");
 						end
 					end
-					prev = v[i];
+					prev = Y;
 				end
 			end
 		end
@@ -581,7 +581,7 @@ end
 
 -- Borrowed from LibGraph et al. (and heavilly modified)
 
-function LibSVG.DrawLine(C, sx, sy, ex, ey, w, color, transforms, fmatrix)
+function LibSVG.DrawLine(C, sx, sy, ex, ey, w, color, transforms, tracePaths)
     if ( type(transforms) == "table" and #transforms ) then
         for k, v in pairs(transforms) do
             if ( v[1] == 't' ) then
@@ -594,35 +594,31 @@ function LibSVG.DrawLine(C, sx, sy, ex, ey, w, color, transforms, fmatrix)
     end
     sy = C:GetHeight() - sy;
     ey = C:GetHeight() - ey;
-
-    if ( sx < 0 ) then sx = math.floor(sx - 0.5); else sx = math.floor(sx + 0.5); end
+	if ( sx < 0 ) then sx = math.floor(sx - 0.5); else sx = math.floor(sx + 0.5); end
     if ( ex < 0 ) then ex = math.floor(ex - 0.5); else ex = math.floor(ex + 0.5); end
-	if ( sy < 0 ) then sy = math.floor(sy - 0.5); else sy = math.floor(sy + 0.5); end
-    if ( ey < 0 ) then ey = math.floor(ey - 0.5); else ey = math.floor(ey + 0.5); end
-
 
     local relPoint = "BOTTOMLEFT"
+	local steps = math.abs(sx-ex);
 
-    if sx==ex then
-        return LibSVG.DrawVLine(C,sx,sy,ey,w, color)
-    end
-	if sy==ey then
-        return LibSVG.DrawHLine(C,sy,sx,ex,w, color, "ARTWORK", fmatrix)
-    end
-	w = w * 32 * (256/254);
-
-    local steps = math.abs(sx-ex) or 1;
-
-	if ( fmatrix) then
+	if ( tracePaths) then
 		local py,px = nil, nil;
 		for i = 1, steps do
 			local x = sx + ((ex-sx) * (i / steps));
 			local y = sy + ((ey-sy) * ( i / steps));
 			if ( y < 0 ) then y = math.floor(y + 0.5); else y = math.floor(y - 0.5); end
-			if ( not fmatrix[x] ) then fmatrix[x] = {}; end
-			table.insert(fmatrix[x], y);
+			if ( not tracePaths[x] ) then tracePaths[x] = {}; end
+			table.insert(tracePaths[x], y);
 		end
 	end
+
+    if sx==ex then
+        return LibSVG.DrawVLine(C,sx,sy,ey,w, color)
+    end
+	if sy==ey then
+        return LibSVG.DrawHLine(C,sy,sx,ex,w, color, "ARTWORK", tracePaths)
+    end
+	w = w * 32 * (256/254);
+
 	if ( math.abs( sx - ex) < 1 and math.abs(sy - ey) < 1 ) then -- lines that don't go anywhere makes me a sad panda.
         return;
     end
@@ -634,8 +630,6 @@ function LibSVG.DrawLine(C, sx, sy, ex, ey, w, color, transforms, fmatrix)
     if not color or w == 0 then
         return;
     end
-
-
 
     -- Determine dimensions and center point of line
     local dx,dy = ex - sx, ey - sy;
@@ -725,20 +719,11 @@ function LibSVG.DrawVLine(C, x, sy, ey, w, color, layer)
 	return T
 end
 
-function LibSVG.DrawHLine(C, y, sx, ex, w, color, layer, fmatrix)
+function LibSVG.DrawHLine(C, y, sx, ex, w, color, layer, tracePaths)
 	local relPoint = "BOTTOMLEFT"
-	print(1);
 	if not C.SVG_Lines then
 		C.SVG_Lines={}
 		C.SVG_Lines_Used={}
-	end
-
-
-	if ( fmatrix) then
-		for i = math.min(sx,ex), math.max(ex,sx) do
-			if ( not fmatrix[i] ) then fmatrix[i] = {}; end
-			table.insert(fmatrix[i], y);
-		end
 	end
 
 	if not color then
