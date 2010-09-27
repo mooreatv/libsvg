@@ -21,11 +21,14 @@ local LibSVG = LibStub:NewLibrary(LIBSVG, LIBSVG_MINOR)
 local LibXML = LibStub("LibXML-1.0");
 if not LibXML then error(LIBSVG .. " requires LibXML-1.0.") end
 LibSVG.line = "";
+LibSVG.circle = "";
+LibSVG.diamond = "";
 do
 	local path = string.match(debugstack(1,1,0), "AddOns\\(.+)LibSVG%-1%.0%.lua");
 	if path then
 		LibSVG.line = [[Interface\AddOns\]] .. path .. [[line]];
-		print(LibSVG.line);
+		LibSVG.circle = [[Interface\AddOns\]] .. path .. [[circle]];
+		LibSVG.diamond = [[Interface\AddOns\]] .. path .. [[diamond]];
 	else
 		error(LIBSVG.." cannot determine the folder it is located in because the path is too long and got truncated in the debugstack(1,1,0) function call")
 	end
@@ -112,7 +115,7 @@ function LibSVG:Compile(xml, group)
                     table.insert(object.transformations, 1, {'m', tonumber(a),tonumber(b),tonumber(c),tonumber(d),tonumber(e),tonumber(f)});
                 end
             end
-            object.stroke = (tonumber((el.args['stroke-width'] or ""):match("([%d%.%-]+)")) or 2)*1
+            object.stroke = (tonumber((el.args['stroke-width'] or ""):match("([%d%.%-]+)")) or 1)*1
             if ( el.args['stroke-width'] == "none" ) then object.stroke = 0; end
             object.color = LibSVG.ParseColor(el.args.stroke);
             object.fill = LibSVG.ParseColor(el.args.fill);
@@ -137,7 +140,7 @@ function LibSVG:Compile(xml, group)
                 if ( style:match("stroke%-width:([%d%.%-]+)") ) then
                     if ( style:match("stroke%-width:(none)") ) then stroke = 0;
                     else
-                        object.stroke = (tonumber(style:match("stroke%-width:([%d%.%-]+)")) or 2)*1
+                        object.stroke = (tonumber(style:match("stroke%-width:([%d%.%-]+)")) or 1)*1
                     end
                 end
             end
@@ -521,8 +524,8 @@ function LibSVG:Render()
 	local co = coroutine.create(function() svg:RenderReal(); end);
 	svg.canvas:SetScript("OnUpdate",
 		function()
-			local ret,moo = coroutine.resume(co);
-		--	print(ret, moo);
+			local ret,err = coroutine.resume(co);
+			--print(ret, err);
 			if ( ret == false ) then
 				svg.canvas:SetScript("OnUpdate", nil);
 			end
@@ -558,6 +561,22 @@ function LibSVG:RenderReal(object)
 				if not C.SVG_Lines then C.SVG_Lines={} C.SVG_Lines_Used={} end
 				local T = tremove(C.SVG_Lines) or C:CreateTexture(nil, "BACKGROUND");
 				T:SetTexture([[Interface\BUTTONS\WHITE8X8]]);
+				tinsert(C.SVG_Lines_Used,T)
+				T:SetDrawLayer("BACKGROUND");
+				T:SetVertexColor(color[1],color[2],color[3],color[4]);
+				T:ClearAllPoints();
+				T:SetTexCoord(0,1,0,1);
+				T:SetPoint("TOPLEFT", C, "TOPLEFT", ax, -ay);
+				T:SetPoint("BOTTOMRIGHT",   C, "TOPLEFT", bx, -by);
+				T:Show();
+			elseif ( f[1] == 'c' ) then
+				local cx, cy = f[2], f[3];
+				local r = f[4];
+				local ax,ay = LibSVG.transform(object.transformations, cx-r, cy-r);
+				local bx,by = LibSVG.transform(object.transformations, cx+r, cy+r);
+				if not C.SVG_Lines then C.SVG_Lines={} C.SVG_Lines_Used={} end
+				local T = tremove(C.SVG_Lines) or C:CreateTexture(nil, "BACKGROUND");
+				T:SetTexture(LibSVG.circle);
 				tinsert(C.SVG_Lines_Used,T)
 				T:SetDrawLayer("BACKGROUND");
 				T:SetVertexColor(color[1],color[2],color[3],color[4]);
