@@ -161,6 +161,7 @@ function LibSVG:Compile(xml, group)
                 local radius = tonumber(el.args.r) or 10;
                 local cX = tonumber(el.args.cx) or 0;
                 local cY = tonumber(el.args.cy) or 0;
+				object.fillPath = {'c', cX, cY, radius};
 
                 for x = 0, radius do
                     local y = (x/radius) * math.pi * 2;
@@ -180,6 +181,7 @@ function LibSVG:Compile(xml, group)
                 local cX = tonumber(el.args.cx) or 0;
                 local cY = tonumber(el.args.cy) or 0;
                 local m = math.max(rX, rY);
+				object.fillPath = {'e', cX, cY, rX, rY};
                 for n = 0, m do
                     local y = (n/m) * math.pi * 2;
                     local x = (n/m) * math.pi * 2;
@@ -201,6 +203,8 @@ function LibSVG:Compile(xml, group)
 				table.insert(object.lines, {x, y, x, y+height});
 				table.insert(object.lines, {x+width, y, x+width, y+height});
 				table.insert(object.lines, {x, y+height, x+width, y+height});
+				object.fillPath = {'r', x, y, x+width, y+height};
+
 				svg.CompiledArgs = svg.CompiledArgs + 4;
             elseif ( el.class == "polygon" ) then
                 local sX, sY = nil,nil;
@@ -362,7 +366,7 @@ function LibSVG:Compile(xml, group)
                                     ( math.pow(t, 3) * p3[2] )
                                     ;
 								local cangle = math.deg(math.atan((eY-sY)/(eX-sX)));
-								if ( pangle == nil or math.abs(pangle-cangle) > 1 or n == trace ) then
+								if ( pangle == nil or math.abs(pangle-cangle) > 2 or n == trace ) then
 									table.insert(object.lines, {sX, sY, eX, eY});
 									svg.CompiledArgs = svg.CompiledArgs + 1;
 									sX = eX;
@@ -468,7 +472,7 @@ function LibSVG:Compile(xml, group)
                                 local eX = (math.cos(a) * rX) + cx;
                                 local eY = -(math.sin(a) * rY) + cy;
 								local cangle = math.deg(math.atan((eY-sY)/(eX-sX)));
-								if ( pangle == nil or math.abs(pangle-cangle) > 1 or n == m ) then
+								if ( pangle == nil or math.abs(pangle-cangle) > 2 or n == m ) then
 									--if ( sX and sY ) then
 										table.insert(object.lines, {sX, sY, eX, eY});
 										svg.CompiledArgs = svg.CompiledArgs + 1;
@@ -544,20 +548,41 @@ function LibSVG:RenderReal(object)
 		end
 	end
 	if ( object.fill ) then
-		for k, v in pairs(object.tracePaths) do
-			if ( #v > 1 ) then
-				table.sort(v);
-				local prev = v[#v];
-				local n = 1;
-				for i = 1, #v-1 do
-					local Y = v[#v-i];
-					if ( Y ~= prev ) then
-						n = n + 1;
-						if ( math.fmod(n,2) == 0 ) then
-							LibSVG.DrawVLine(object.canvas,k,prev,Y,2, object.fill, "BACKGROUND");
+		if ( object.fillPath ) then
+			local f = object.fillPath;
+			local C = object.canvas;
+			local color = object.fill;
+			if ( f[1] == 'r' ) then
+				local ax,ay = LibSVG.transform(object.transformations, f[2], f[3]);
+				local bx,by = LibSVG.transform(object.transformations, f[4], f[5]);
+				if not C.SVG_Lines then C.SVG_Lines={} C.SVG_Lines_Used={} end
+				local T = tremove(C.SVG_Lines) or C:CreateTexture(nil, "BACKGROUND");
+				T:SetTexture([[Interface\BUTTONS\WHITE8X8]]);
+				tinsert(C.SVG_Lines_Used,T)
+				T:SetDrawLayer("BACKGROUND");
+				T:SetVertexColor(color[1],color[2],color[3],color[4]);
+				T:ClearAllPoints();
+				T:SetTexCoord(0,1,0,1);
+				T:SetPoint("TOPLEFT", C, "TOPLEFT", ax, -ay);
+				T:SetPoint("BOTTOMRIGHT",   C, "TOPLEFT", bx, -by);
+				T:Show();
+			end
+		else
+			for k, v in pairs(object.tracePaths) do
+				if ( #v > 1 ) then
+					table.sort(v);
+					local prev = v[#v];
+					local n = 1;
+					for i = 1, #v-1 do
+						local Y = v[#v-i];
+						if ( Y ~= prev ) then
+							n = n + 1;
+							if ( math.fmod(n,2) == 0 ) then
+								LibSVG.DrawVLine(object.canvas,k,prev,Y,2, object.fill, "BACKGROUND");
+							end
 						end
+						prev = Y;
 					end
-					prev = Y;
 				end
 			end
 		end
@@ -570,28 +595,27 @@ function LibSVG:RenderReal(object)
 	coroutine.yield();
 end
 
-
-function LibSVG.MatrixTransform(x,y,matrix)
-    local nX = (x*matrix[1]) + (y*matrix[3]) + matrix[5];
-    local nY = (x*matrix[2]) + (y*matrix[4]) + matrix[6];
-    return {nX, nY};
+function LibSVG.transform(t, x, y)
+	if ( type(t) == "table" and #t ) then
+        for k, v in pairs(t) do
+            if ( v[1] == 't' ) then
+                x,y= x + v[2], y + v[3];
+            elseif ( v[1] == 'm' ) then
+				x = (x*v[2]) + (y*v[4]) + v[6];
+				y = (x*v[3]) + (y*v[5]) + v[7];
+            end
+        end
+    end
+	return x,y;
 end
-
 
 
 -- Borrowed from LibGraph et al. (and heavilly modified)
 
 function LibSVG.DrawLine(C, sx, sy, ex, ey, w, color, transforms, tracePaths)
-    if ( type(transforms) == "table" and #transforms ) then
-        for k, v in pairs(transforms) do
-            if ( v[1] == 't' ) then
-                sx,sy,ex,ey = sx + v[2], sy + v[3], ex + v[2], ey + v[3];
-            elseif ( v[1] == 'm' ) then
-                sx, sy = unpack(LibSVG.MatrixTransform(sx,sy, {v[2],v[3],v[4],v[5],v[6],v[7]}));
-                ex, ey = unpack(LibSVG.MatrixTransform(ex,ey, {v[2],v[3],v[4],v[5],v[6],v[7]}));
-            end
-        end
-    end
+	sx,sy = LibSVG.transform(transforms, sx, sy);
+	ex,ey = LibSVG.transform(transforms, ex, ey);
+
     sy = C:GetHeight() - sy;
     ey = C:GetHeight() - ey;
 	if ( sx < 0 ) then sx = math.floor(sx - 0.5); else sx = math.floor(sx + 0.5); end
