@@ -67,15 +67,23 @@ function LibSVG:Parse(xml)
 	if ( type(xml) == "string" ) then xml = LibXML:Import(xml); end
 	svg.xml = nil;
 	if ( xml.class and xml.class:lower() == "svg" ) then
-		svg.canvas:SetWidth( tonumber(xml.args.width) or 100);
-		svg.canvas:SetHeight( tonumber(xml.args.height) or 100);
+		local x,p = (xml.args.width or "100px"):match("([%d%.%-]+)([%a]*)");
+		if ( p == "cm" ) then x = x * 36; end
+		svg.canvas:SetWidth(x);
+		x,p = (xml.args.height or "100px"):match("([%d%.%-]+)([%a]*)");
+		if ( p == "cm" ) then x = x * 36; end
+		svg.canvas:SetHeight(x);
 		svg.canvas:Show();
 		svg.xml = xml;
 	else
 		for k, v in pairs(xml) do
 			if ( type(v) == "table" and v.class:lower() == "svg" ) then
-				svg.canvas:SetWidth( tonumber(v.args.width) or 100);
-				svg.canvas:SetHeight( tonumber(v.args.height) or 100);
+				local x,p = (v.args.width or "100px"):match("([%d%.%-]+)([%a]*)");
+				if ( p == "cm" ) then x = x * 36; end
+				svg.canvas:SetWidth(x);
+				x,p = (v.args.height or "100px"):match("([%d%.%-]+)([%a]*)");
+				if ( p == "cm" ) then x = x * 36; end
+				svg.canvas:SetHeight(x);
 				svg.canvas:Show();
 				svg.xml = v;
 				break;
@@ -86,6 +94,7 @@ end
 
 function LibSVG:CompileDefs(xml)
 	local svg = self;
+	print(svg.canvas:GetWidth(),svg.canvas:GetHeight());
 	svg.defs = svg.defs or {};
 	for i = 1, #xml do
 		local el = xml[i];
@@ -146,9 +155,28 @@ function LibSVG:Compile(xml, group)
                 end
             end
             if ( el.args.transform ) then
-                local x, y = el.args.transform:match("translate%(([%d%.%-]+),([%d%.%-]+)%)");
+                local x, y = el.args.transform:match("translate%(([%d%.%-]+),?([%d%.%-]*)%)");
                 if ( x ) then
                     table.insert(object.transformations, 1, {'t', tonumber(x) or 0, tonumber(y) or 0});
+                end
+				x, y = el.args.transform:match("scale(([%d%.%-]+),?([%d%.%-]*)%)");
+                if ( x ) then
+                    table.insert(object.transformations, 1, {'m', tonumber(x) or 0, 0, 0, tonumber(y) or 0, 0, 0});
+                end
+				local angle = el.args.transform:match("rotate%(([%d%.%-]+)%)");
+                if ( angle ) then
+					angle = math.rad(angle);
+					table.insert(object.transformations, 1, {'m', math.cos(angle),math.sin(angle),-math.sin(angle),math.cos(angle),0,0});
+                end
+				local skewX = el.args.transform:match("skewX(([%d%.%-]+)%)");
+                if ( skewX ) then
+					local angle = math.rad(skewX);
+					table.insert(object.transformations, 1, {'m', 1,0, math.tan(angle), 1,0,0});
+                end
+				local skewY = el.args.transform:match("skewX(([%d%.%-]+)%)");
+                if ( skewY ) then
+					local angle = math.rad(skewY);
+					table.insert(object.transformations, 1, {'m', 1, math.tan(angle), 0, 1, 0,0});
                 end
                 local a,b,c,d,e,f = el.args.transform:match("matrix%(([%d%.%-]+),([%d%.%-]+),([%d%.%-]+),([%d%.%-]+),([%d%.%-]+),([%d%.%-]+)%)");
                 if ( a ) then
@@ -270,7 +298,8 @@ function LibSVG:Compile(xml, group)
                     end
                 end
                 if ( fX ~= nil and eX ~= nil ) then
-                    self:DrawLine(canvas, fX, fY, eX, eY, stroke, color, el.transformations, el.tracePaths);
+                    table.insert(object.lines, {fX, fY, eX, eY});
+					svg.CompiledArgs = svg.CompiledArgs + 1;
                 end
 
             elseif ( el.class == "polyline" ) then
@@ -567,7 +596,7 @@ function LibSVG:Render()
 	svg.canvas:SetScript("OnUpdate",
 		function()
 			local ret,err = coroutine.resume(co);
-			print(ret, err);
+			if ( err ) then print(ret, err); end
 			if ( ret == false ) then
 				svg.canvas:SetScript("OnUpdate", nil);
 			end
