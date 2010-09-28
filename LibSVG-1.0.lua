@@ -157,33 +157,34 @@ function LibSVG:Compile(xml, group)
                 end
             end
             if ( el.args.transform ) then
-                local transform = el.args.transform:gsub("%s+", "");
-                local x, y = transform:match("translate%(([%d%.%-]+),?([%d%.%-]*)%)");
-                if ( x ) then
-                    table.insert(object.transformations, {'t', tonumber(x) or 0, tonumber(y) or 0});
-                end
-                x, y = transform:match("scale(([%d%.%-]+),?([%d%.%-]*)%)");
-                if ( x ) then
-                    table.insert(object.transformations, {'m', tonumber(x) or 0, 0, 0, tonumber(y) or 0, 0, 0});
-                end
-                local angle = transform:match("rotate%(([%d%.%-]+)%)");
-                if ( angle ) then
-                    angle = math.rad(angle);
-                    table.insert(object.transformations, {'m', math.cos(angle),math.sin(angle),-math.sin(angle),math.cos(angle),0,0});
-                end
-                local skewX = transform:match("skewX(([%d%.%-]+)%)");
-                if ( skewX ) then
-                    local angle = math.rad(skewX);
-                    table.insert(object.transformations, {'m', 1,0, math.tan(angle), 1,0,0});
-                end
-                local skewY = transform:match("skewX(([%d%.%-]+)%)");
-                if ( skewY ) then
-                    local angle = math.rad(skewY);
-                    table.insert(object.transformations, {'m', 1, math.tan(angle), 0, 1, 0,0});
-                end
-                local a,b,c,d,e,f = transform:match("matrix%(([%d%.%-]+),([%d%.%-]+),([%d%.%-]+),([%d%.%-]+),([%d%.%-]+),([%d%.%-]+)%)");
-                if ( a ) then
-                    table.insert(object.transformations, {'m', tonumber(a),tonumber(b),tonumber(c),tonumber(d),tonumber(e),tonumber(f)});
+                for method, args in el.args.transform:gmatch("(%a+)%(([^%)]+)%)") do
+                    local n = {};
+                    for x in args:gmatch("([%d%.%-]+)") do
+                        n[#n+1] = tonumber(x);
+                    end
+                    method = method:lower();
+                    if ( method == "matrix" ) then
+                        table.insert(object.transformations, { (n[1] or 0), (n[2] or 0), (n[3] or 0), (n[4] or 0), (n[5] or 0), (n[6] or 0)});
+                    elseif ( method == "translate" ) then
+                        table.insert(object.transformations, {1, 0, 0, 1, n[1] or 0, n[2] or 0});
+                    elseif ( method == "scale" ) then
+                        table.insert(object.transformations, {n[1], 0, 0, n[2], 0, 0});
+                    elseif ( method == "rotate" ) then
+                        local a, x, y = math.rad(n[1] or 0), n[2], n[3];
+                        if ( not x or not y ) then
+                            table.insert(object.transformations, {math.cos(a),math.sin(a),-math.sin(a),math.cos(a),0,0});
+                        else
+                            table.insert(object.transformations, {1, 0, 0, 1, (x or 0), (y or 0)});
+                            table.insert(object.transformations, {math.cos(a),math.sin(a),-math.sin(a),math.cos(a),0,0});
+                            table.insert(object.transformations, {1, 0, 0, 1, -(x or 0), -(y or 0)});
+                        end
+                    elseif ( method == "skewx" ) then
+                        local a = math.rad(n[1] or 0);
+                        table.insert(object.transformations, {1, 0, math.tan(a), 1, 0, 0});
+                    elseif ( method == "skewy" ) then
+                        local a = math.rad(n[1] or 0);
+                        table.insert(object.transformations, {1, math.tan(a), 0, 1, 0, 0});
+                    end
                 end
             end
             object.stroke = (tonumber((el.args['stroke-width'] or ""):match("([%d%.%-]+)")) or 1)*1
@@ -220,9 +221,9 @@ function LibSVG:Compile(xml, group)
             object.fill = object.fill or group.fill;
 
             -- This is just debug stuff I use --
-            --fill = nil;
+            --object.fill = nil;
             --object.color = LibSVG.colors.black;
-            --object.stroke = 20;
+            --object.stroke = 2;
 
             object.canvas = CreateFrame("Frame", svg.canvas);
             object.canvas:SetParent(svg.canvas);
@@ -376,7 +377,6 @@ function LibSVG:Compile(xml, group)
                         fY = sY;
                         eX,eY = sX,sY;
                         xX, xY = sX, sY;
-                        table.insert(object.lines, {sX-2,sY-2,sX+2,sY+2});
                         if ( #coords > 1 ) then
                             table.remove(coords, 1);
                             c = "L";
@@ -545,7 +545,7 @@ function LibSVG:Compile(xml, group)
                             angleStart = math.fmod(angleStart, math.pi*2);
                             local m = math.floor(math.max(rX, rY));
                             local pangle = nil;
-                            for n = 0, m do
+                            for n = 1, m do
                                 local a = (-angleStart - (angleExtent * n / m));
                                 local eX = (math.cos(a) * rX) + cx;
                                 local eY = -(math.sin(a) * rY) + cy;
@@ -707,13 +707,9 @@ function LibSVG.transform(t, x, y)
     if ( type(t) == "table" and #t ) then
         for n = 0, #t-1 do
             local v = t[#t-n];
-            if ( v[1] == 't' ) then
-                x,y= x + v[2], y + v[3];
-            elseif ( v[1] == 'm' ) then
-                local nx = (x*v[2]) + (y*v[4]) + v[6];
-                local ny = (x*v[3]) + (y*v[5]) + v[7];
-                x,y = nx,ny;
-            end
+            local nx = (x*v[1]) + (y*v[3]) + v[5];
+            local ny = (x*v[2]) + (y*v[4]) + v[6];
+            x,y = nx,ny;
         end
     end
     return x,y;
