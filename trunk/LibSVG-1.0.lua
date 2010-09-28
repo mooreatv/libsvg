@@ -53,6 +53,8 @@ LibSVG.colors = {
 
 function LibSVG:New()
     local svg = {};
+    svg.detail = 1;
+    svg.fill = true;
     svg.Parse = LibSVG.Parse;
     svg.Compile = LibSVG.Compile;
     svg.Render = LibSVG.Render;
@@ -61,6 +63,7 @@ function LibSVG:New()
     svg.DrawLine = LibSVG.DrawLine;
     svg.DrawVLine = LibSVG.DrawVLine;
     svg.canvas = CreateFrame("Frame", nil);
+    svg.SetDetail = LibSVG.SetDetail;
     return svg;
 end
 
@@ -128,6 +131,13 @@ function LibSVG:CompileDefs(xml)
             table.insert(svg.defs, def);
             --print("Added definition:", def.id);
         end
+    end
+end
+
+function LibSVG:SetDetail(detail, fill)
+    self.detail = 100 / detail;
+    if ( fill ~= nil ) then
+        self.fill = fill;
     end
 end
 
@@ -426,7 +436,7 @@ function LibSVG:Compile(xml, group)
                             local trace = math.floor(2 + math.min(
                                 math.abs(math.max(p0[1],p1[1],p2[1],p3[1]) - math.min(p0[1],p1[1],p2[1],p3[1])),
                                 math.abs(math.max(p0[2],p1[2],p2[2],p3[2]) - math.min(p0[2],p1[2],p2[2],p3[2]))
-                            ));
+                            )/svg.detail);
                             local pangle = nil;
                             for n = 1, trace do
                                 local t = n / trace;
@@ -443,7 +453,7 @@ function LibSVG:Compile(xml, group)
                                     ( math.pow(t, 3) * p3[2] )
                                     ;
                                 local cangle = math.deg(math.atan((eY-sY)/(eX-sX)));
-                                if ( pangle == nil or math.abs(pangle-cangle) > 1 or n == trace ) then
+                                if ( pangle == nil or math.abs(pangle-cangle) > svg.detail or n == trace ) then
                                     table.insert(object.lines, {sX, sY, eX, eY});
                                     svg.CompiledArgs = svg.CompiledArgs + 1;
                                     sX = eX;
@@ -543,14 +553,14 @@ function LibSVG:Compile(xml, group)
                             end
                             angleExtent = math.fmod(angleExtent, math.pi*2);
                             angleStart = math.fmod(angleStart, math.pi*2);
-                            local m = math.floor(math.max(rX, rY));
+                            local m = math.floor(math.max(rX, rY)/svg.detail)+1;
                             local pangle = nil;
                             for n = 1, m do
                                 local a = (-angleStart - (angleExtent * n / m));
                                 local eX = (math.cos(a) * rX) + cx;
                                 local eY = -(math.sin(a) * rY) + cy;
                                 local cangle = math.deg(math.atan((eY-sY)/(eX-sX)));
-                                if ( pangle == nil or math.abs(pangle-cangle) > 1 or n == m ) then
+                                if ( pangle == nil or math.abs(pangle-cangle) > svg.detail or n == m ) then
                                     --if ( sX and sY ) then
                                         table.insert(object.lines, {sX, sY, eX, eY});
                                         svg.CompiledArgs = svg.CompiledArgs + 1;
@@ -592,11 +602,11 @@ function LibSVG:Compile(xml, group)
     return svg.CompiledArgs;
 end
 
-function LibSVG:Render()
+function LibSVG:Render(object)
     local svg = self;
     svg.ts = GetTime();
     svg.X = 1;
-    local co = coroutine.create(function() svg:RenderReal(); end);
+    local co = coroutine.create(function() svg:RenderReal(object); end);
     svg.canvas:SetScript("OnUpdate",
         function()
             local ret,err = coroutine.resume(co);
@@ -683,12 +693,12 @@ function LibSVG:RenderReal(object)
                     local n = 1;
                     for i = 1, #v-1 do
                         local Y = v[#v-i];
-                        if ( Y ~= prev ) then
+                    --    if ( Y ~= prev ) then
                             n = n + 1;
                             if ( math.fmod(n,2) == 0 ) then
-                                self:DrawVLine(object.canvas,k,prev+1,Y,2, object.fill, "BACKGROUND", object.bbox);
+                                self:DrawVLine(object.canvas,k,prev,Y,2, object.fill, "BACKGROUND", object.bbox);
                             end
-                        end
+                    --    end
                         prev = Y;
                     end
                 end
@@ -853,7 +863,8 @@ function LibSVG:DrawVLine(C, x, sy, ey, w, color, layer, bbox)
             local sY, eY = bbox[2], bbox[4];
             local sopacity, scolor = def.points[1].opacity * (color[4] or 1), def.points[1].color;
             local eopacity, ecolor = def.points[#def.points].opacity * (color[4] or 1), def.points[#def.points].color;
-            T:SetGradientAlpha("vertical", scolor[1], scolor[2],scolor[3], sopacity, ecolor[1], ecolor[2],ecolor[3], eopacity);
+
+            --T:SetGradientAlpha("horizontal", scolor[1], scolor[2],scolor[3], sopacity, ecolor[1], ecolor[2],ecolor[3], eopacity);
         end
     end
 
