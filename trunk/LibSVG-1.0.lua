@@ -29,7 +29,7 @@ do
     if path then
         LibSVG.line = [[Interface\AddOns\]] .. path .. [[line]];
         LibSVG.circle = [[Interface\AddOns\]] .. path .. [[circle]];
-        LibSVG.diamond = [[Interface\AddOns\]] .. path .. [[diamond]];
+        LibSVG.diamond = [[Interface\AddOns\]] .. path .. [[rect]];
     else
         error(LIBSVG.." cannot determine the folder it is located in because the path is too long and got truncated in the debugstack(1,1,0) function call")
     end
@@ -135,7 +135,7 @@ function LibSVG:CompileDefs(xml)
 end
 
 function LibSVG:SetDetail(detail, fill)
-    self.detail = 100 / detail;
+    self.detail = 100 / (tonumber(detail) or 100);
     if ( fill ~= nil ) then
         self.fill = fill;
     end
@@ -643,7 +643,8 @@ function LibSVG:RenderReal(object)
         end
         object.bbox = bbox;
     end
-    if ( object.fill ) then
+    if ( object.fill and svg.fill ) then
+        local s = false;
         if ( object.fillPath ) then
             local f = object.fillPath;
             local C = object.canvas;
@@ -651,19 +652,24 @@ function LibSVG:RenderReal(object)
             if ( f[1] == 'r' ) then
                 local ax,ay = LibSVG.transform(object.transformations, f[2], f[3]);
                 local bx,by = LibSVG.transform(object.transformations, f[4], f[5]);
+                local rotation = math.tan( ( bx-ax) / (by-ay) );
                 if not C.SVG_Lines then C.SVG_Lines={} C.SVG_Lines_Used={} end
                 local T = tremove(C.SVG_Lines) or C:CreateTexture(nil, "BACKGROUND");
-                T:SetTexture([[Interface\BUTTONS\WHITE8X8]]);
-                tinsert(C.SVG_Lines_Used,T)
-                T:SetDrawLayer("BACKGROUND");
-                if ( not color.def ) then
-                    T:SetVertexColor(color[1],color[2],color[3],color[4]);
-                else
+                if ( math.abs(rotation) == 0 or math.abs(rotation) == ( math.pi/2) ) then
+                    T:SetTexture([[Interface\BUTTONS\WHITE8X8]]);
+                    tinsert(C.SVG_Lines_Used,T)
+                    T:SetDrawLayer("BACKGROUND");
+                    if ( not color.def ) then
+                        T:SetVertexColor(color[1],color[2],color[3],color[4]);
+                    else
+                    end
+                    T:ClearAllPoints();
+                    T:SetTexCoord(0,1,0,1);
+                    s = true;
                 end
-                T:ClearAllPoints();
-                T:SetTexCoord(0,1,0,1);
-                T:SetPoint("TOPLEFT", C, "TOPLEFT", ax, -ay);
-                T:SetPoint("BOTTOMRIGHT",   C, "TOPLEFT", bx, -by);
+                T:SetPoint("TOPLEFT", C, "TOPLEFT", math.min(ax,bx), math.max(-ay,-by));
+                T:SetPoint("BOTTOMRIGHT",   C, "TOPLEFT", math.max(ax,bx), math.min(-ay,-by));
+                print(math.min(ax,bx),math.max(-ay,-by),math.max(ax,bx), math.min(-ay,-by));
                 T:Show();
             elseif ( f[1] == 'c' ) then
                 local cx, cy = f[2], f[3];
@@ -684,8 +690,10 @@ function LibSVG:RenderReal(object)
                 T:SetPoint("TOPLEFT", C, "TOPLEFT", ax, -ay);
                 T:SetPoint("BOTTOMRIGHT",   C, "TOPLEFT", bx, -by);
                 T:Show();
+                s = true;
             end
-        else
+        end
+        if ( s == false ) then
             for k, v in pairs(object.tracePaths) do
                 if ( #v > 1 ) then
                     table.sort(v);
