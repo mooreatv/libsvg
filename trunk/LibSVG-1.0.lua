@@ -686,7 +686,7 @@ function LibSVG:RenderReal(object)
                         if ( Y ~= prev ) then
                             n = n + 1;
                             if ( math.fmod(n,2) == 0 ) then
-                                self:DrawVLine(object.canvas,k,prev+1,Y+1,2, object.fill, "BACKGROUND", object.bbox);
+                                self:DrawVLine(object.canvas,k,prev+1,Y,2, object.fill, "BACKGROUND", object.bbox);
                             end
                         end
                         prev = Y;
@@ -735,7 +735,7 @@ function LibSVG:DrawLine(C, sx, sy, ex, ey, w, color, transforms, tracePaths)
         for i = 1, steps do
             local x = sx + ((ex-sx) * (i / steps));
             local y = sy + ((ey-sy) * ( i / steps));
-            if ( y < 0 ) then y = math.floor(y + 0.5); else y = math.floor(y - 0.5); end
+            --if ( y < 0 ) then y = math.floor(y + 0.5); else y = math.floor(y - 0.5); end
             if ( not tracePaths[x] ) then tracePaths[x] = {}; end
             table.insert(tracePaths[x], y);
         end
