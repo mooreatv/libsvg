@@ -94,7 +94,6 @@ end
 
 function LibSVG:CompileDefs(xml)
 	local svg = self;
-	print(svg.canvas:GetWidth(),svg.canvas:GetHeight());
 	svg.defs = svg.defs or {};
 	for i = 1, #xml do
 		local el = xml[i];
@@ -474,11 +473,11 @@ function LibSVG:Compile(xml, group)
                                 x = x + sX;
                                 y = y + sY;
                             end
-                            large_arc_flag = math.floor(large_arc_flag);
-                            sweep_flag = math.floor(sweep_flag);
+                            large_arc_flag = math.floor(tonumber(large_arc_flag));
+                            sweep_flag = math.floor(tonumber(sweep_flag));
                             local x0,y0 = sX, sY;
                             local dx2, dy2 = (x0-x)/2, (y0-y)/2;
-                            local theta = math.rad(angle);
+                            local theta = math.rad(tonumber(angle));
 
                             -- Find x1,y1
                             local x1 = (math.cos(theta) * dx2 + math.sin(theta) * dy2);
@@ -524,7 +523,7 @@ function LibSVG:Compile(xml, group)
                             sign = 1;
                             if (uy < 0) then sign = -1; end
 
-                            local angleStart = math.deg(sign * math.acos(p / n));
+                            local angleStart = (sign * math.acos(p / n));
 
                             n = math.sqrt((ux * ux + uy * uy) * (vx * vx + vy * vy));
                             p = ux * vx + uy * vy;
@@ -539,14 +538,14 @@ function LibSVG:Compile(xml, group)
                             end
                             angleExtent = math.fmod(angleExtent, math.pi*2);
                             angleStart = math.fmod(angleStart, math.pi*2);
-                            local m = math.floor(math.max(rX, rY)*2);
+                            local m = math.floor(math.max(rX, rY));
 							local pangle = nil;
-                            for n = 1, m do
+                            for n = 0, m do
                                 local a = (-angleStart - (angleExtent * n / m));
                                 local eX = (math.cos(a) * rX) + cx;
                                 local eY = -(math.sin(a) * rY) + cy;
 								local cangle = math.deg(math.atan((eY-sY)/(eX-sX)));
-								if ( pangle == nil or math.abs(pangle-cangle) > 2 or n == m ) then
+								if ( pangle == nil or math.abs(pangle-cangle) > 1 or n == m ) then
 									--if ( sX and sY ) then
 										table.insert(object.lines, {sX, sY, eX, eY});
 										svg.CompiledArgs = svg.CompiledArgs + 1;
@@ -596,7 +595,7 @@ function LibSVG:Render()
 	svg.canvas:SetScript("OnUpdate",
 		function()
 			local ret,err = coroutine.resume(co);
-			if ( err ) then print(ret, err); end
+			--if ( err ) then print(ret, err); end
 			if ( ret == false ) then
 				svg.canvas:SetScript("OnUpdate", nil);
 			end
