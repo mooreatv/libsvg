@@ -62,6 +62,7 @@ function LibSVG:New()
     svg.CompileDefs = LibSVG.CompileDefs;
     svg.DrawLine = LibSVG.DrawLine;
     svg.DrawVLine = LibSVG.DrawVLine;
+    svg.DrawHLine = LibSVG.DrawHLine;
     svg.canvas = CreateFrame("Frame", nil);
     svg.SetDetail = LibSVG.SetDetail;
     return svg;
@@ -103,8 +104,9 @@ function LibSVG:CompileDefs(xml)
     svg.defs = svg.defs or {};
     for i = 1, #xml do
         local el = xml[i];
-        if ( el.class:lower() == "lineargradient" ) then
-            local def = { type = 'lineargradient', id = el.args.id, points = {} };
+        local c = el.class:lower();
+        if ( c == "lineargradient" or c == "radialgradient" ) then
+            local def = { type = c, id = el.args.id, points = {} };
             for j = 1, #el do
                 local arg = el[j];
                 if ( arg.class == "stop" ) then
@@ -159,6 +161,7 @@ function LibSVG:Compile(xml, group)
             el.args = el.args or {};
             object.tracePaths = {};
             object.lines = {};
+            object.strings = {};
             object.transformations = object.transformations or {};
             table.insert(group.children, object);
             if ( group.transformations ) then
@@ -329,37 +332,22 @@ function LibSVG:Compile(xml, group)
                     sX = eX;
                     sY = eY;
                 end
---[[            elseif ( el.class == "text" ) then
-                sX = tonumber(el.args.x) or 0;
-                sY = tonumber(el.args.y) or 0;
-                if ( type(el.transformations) == "table" and #el.transformations ) then
-                    for k, v in pairs(el.transformations) do
-                        if ( v[1] == 't' ) then
-                            sX, sY = sX + v[2], sY + v[3];
-                        elseif ( v[1] == 'm' ) then
-                            sX, sY = unpack(LibSVG.matrix(sX,sY, {v[2],v[3],v[4],v[5],v[6],v[7]}));
-                        end
-                    end
-                end
-                local caption = canvas:CreateFontString(nil, "DIALOG");
-                caption:SetFontObject("SystemFont_Med1");
-                caption:SetText("abcdABCD");
-                local h = caption:GetStringHeight();
-                caption:SetPoint("TOPLEFT", canvas, "TOPLEFT", sX, -(sY-h));
+            elseif ( el.class == "text" or el.class == "tspan" ) then
+                local ax = (tonumber(el.args.x or object.x) or 0) + (tonumber(el.args.dx) or 0);
+                local ay = (tonumber(el.args.y or object.y) or 0) + (tonumber(el.args.dy) or 0);
+                local size = (tonumber(el.args['font-size']) or 12);
                 local text = "";
-                for k, v in pairs(el) do
-                    if ( type(v) == "table" and v.class == "tspan" ) then
-                        text = text .. LibSVG.renderText(v);
+                for n = 0, #el do
+                    if ( type(el[n]) == "string" ) then
+                        text = text .. el[n];
+                        print(el[n]);
                     end
                 end
-                caption:SetText(text);
-                caption:SetWidth(caption:GetStringWidth());
-                caption:SetHeight(caption:GetStringHeight());
-                print(caption:GetWidth(), caption:GetHeight(), sX, sY);
-                caption:SetTextColor(unpack(fill));
-
-                print("mooo");
-      ]]    elseif ( el.class == "path" ) then
+                object.x = ax;
+                object.y = ay;
+                table.insert(object.strings, {ax, ay, size, text});
+                svg:Compile(el, object); -- in case we have tspans inside
+          elseif ( el.class == "path" ) then
                 el.args.d = (el.args.d or "y") .. " 0y0"; -- kludge
                 local sX, sY = 0,0;
                 local xX, xY = nil,nil;
@@ -409,7 +397,7 @@ function LibSVG:Compile(xml, group)
                         if ( xX and xY ) then
                             dX, dY = sX-xX,sY-xY;
                         end
-                        print("old point", xX, xY, "current", sX, sY, "reflected", sX+dX, sY+dY);
+                        --print("old point", xX, xY, "current", sX, sY, "reflected", sX+dX, sY+dY);
                         if ( not rel ) then
                             table.insert(coords, 1, {sX+dX, sY+dY});
                         else
@@ -482,7 +470,6 @@ function LibSVG:Compile(xml, group)
                             end
                         end
                     elseif ( c == "A" ) then
-                        print(4);
                         for rX, rY, angle, large_arc_flag, sweep_flag, x, y in v:gmatch("([%d%-%.]+)[^%d%-%.]([%d%-%.]+)[^%d%-%.]+([%d%-%.]+)[^%d%-%.]+([%d%-%.]+)[^%d%-%.]+([%d%-%.]+)[^%d%-%.]+([%d%-%.]+)[^%d%-%.]+([%d%-%.]+)[^%d%-%.]+") do
                             if ( rel ) then
                                 x = x + sX;
@@ -669,7 +656,7 @@ function LibSVG:RenderReal(object)
                 end
                 T:SetPoint("TOPLEFT", C, "TOPLEFT", math.min(ax,bx), math.max(-ay,-by));
                 T:SetPoint("BOTTOMRIGHT",   C, "TOPLEFT", math.max(ax,bx), math.min(-ay,-by));
-                print(math.min(ax,bx),math.max(-ay,-by),math.max(ax,bx), math.min(-ay,-by));
+
                 T:Show();
             elseif ( f[1] == 'c' ) then
                 local cx, cy = f[2], f[3];
@@ -713,6 +700,27 @@ function LibSVG:RenderReal(object)
             end
         end
     end
+    if ( object.strings ) then
+        for n = 1, #object.strings do
+            local color = object.fill or object.color;
+            local str = object.strings[n];
+            local C = object.canvas;
+            local ax,ay = LibSVG.transform(object.transformations, str[1], str[2]);
+            local garble = string.format("%8x", math.random(time()));
+            local stringFont = CreateFont("LibSVG-1.0_StringFont"..garble);
+            stringFont:SetFont([[Fonts\FRIZQT__.TTF]],   str[3]);
+            local caption = C:CreateFontString(nil, "DIALOG");
+            caption:SetFontObject(stringFont);
+            caption:SetText(str[4]);
+            local h = caption:GetStringHeight();
+            caption:SetPoint("TOPLEFT", C, "TOPLEFT", ax, -(ay-h));
+            caption:SetWidth(caption:GetStringWidth());
+            caption:SetHeight(caption:GetStringHeight());
+            if ( color ) then
+                caption:SetTextColor(color[1],color[2],color[3],color[4]);
+            end
+        end
+    end
     if ( object.children ) then
         for key, child in pairs(object.children) do
             self:RenderReal(child);
@@ -742,6 +750,7 @@ function LibSVG:DrawLine(C, sx, sy, ex, ey, w, color, transforms, tracePaths)
 
     sy = C:GetHeight() - sy;
     ey = C:GetHeight() - ey;
+
     if ( sx < 0 ) then sx = math.floor(sx - 0.5); else sx = math.floor(sx + 0.5); end
     if ( ex < 0 ) then ex = math.floor(ex - 0.5); else ex = math.floor(ex + 0.5); end
 
@@ -758,12 +767,28 @@ function LibSVG:DrawLine(C, sx, sy, ex, ey, w, color, transforms, tracePaths)
             table.insert(tracePaths[x], y);
         end
     end
+--[[
+    if ( sy < 0 ) then sy = math.floor(sy - 0.5); else sy = math.floor(sy + 0.5); end
+    if ( ey < 0 ) then ey = math.floor(ey - 0.5); else ey = math.floor(ey + 0.5); end
 
+    local relPoint = "BOTTOMLEFT"
+    local steps = math.abs(sy-ey);
+
+    if ( tracePaths) then
+        for i = 1, steps do
+            local x = sx + ((ex-sx) * (i / steps));
+            local y = sy + ((ey-sy) * ( i / steps));
+            --if ( y < 0 ) then y = math.floor(y + 0.5); else y = math.floor(y - 0.5); end
+            if ( not tracePaths[y] ) then tracePaths[y] = {}; end
+            table.insert(tracePaths[y], x);
+        end
+    end
+]]
     if sx==ex then
         return self:DrawVLine(C,sx,sy,ey,w, color)
     end
     if sy==ey then
-        return LibSVG.DrawHLine(C,sy,sx,ex,w, color, "ARTWORK", tracePaths)
+        return self:DrawHLine(C,sy,sx,ex,w, color, "ARTWORK", tracePaths)
     end
     w = w * 32 * (256/254);
 
@@ -885,8 +910,9 @@ function LibSVG:DrawVLine(C, x, sy, ey, w, color, layer, bbox)
     return T
 end
 
-function LibSVG.DrawHLine(C, y, sx, ex, w, color, layer, tracePaths)
+function LibSVG:DrawHLine(C, y, sx, ex, w, color, layer, bbox)
     local relPoint = "BOTTOMLEFT"
+    local svg = self;
     if not C.SVG_Lines then
         C.SVG_Lines={}
         C.SVG_Lines_Used={}
@@ -903,10 +929,26 @@ function LibSVG.DrawHLine(C, y, sx, ex, w, color, layer, tracePaths)
 
     T:SetDrawLayer(layer or "ARTWORK")
 
-    T:SetVertexColor(color[1],color[2],color[3],color[4]);
-
     if sx>ex then
         sx, ex = ex, sx
+    end
+
+    if ( not color.def ) then
+        T:SetVertexColor(color[1],color[2],color[3],color[4]);
+    else
+        local def = nil;
+        for i = 1, #self.defs do
+            if ( color.def == self.defs[i].id ) then
+                def = self.defs[i];
+                break;
+            end
+        end
+        if ( def ) then
+            local sY, eY = bbox[2], bbox[4];
+            local sopacity, scolor = def.points[1].opacity * (color[4] or 1), def.points[1].color;
+            local eopacity, ecolor = def.points[#def.points].opacity * (color[4] or 1), def.points[#def.points].color;
+            T:SetGradientAlpha("horizontal", scolor[1], scolor[2],scolor[3], sopacity, ecolor[1], ecolor[2],ecolor[3], eopacity);
+        end
     end
 
     -- Set texture coordinates and anchors
