@@ -748,13 +748,13 @@ function LibSVG:DrawLine(C, sx, sy, ex, ey, w, color, transforms, tracePaths)
     sx,sy = LibSVG.transform(transforms, sx, sy);
     ex,ey = LibSVG.transform(transforms, ex, ey);
 
-    sy = C:GetHeight() - sy;
-    ey = C:GetHeight() - ey;
+    sy = -sy;
+    ey = -ey;
 
     if ( sx < 0 ) then sx = math.floor(sx - 0.5); else sx = math.floor(sx + 0.5); end
     if ( ex < 0 ) then ex = math.floor(ex - 0.5); else ex = math.floor(ex + 0.5); end
 
-    local relPoint = "BOTTOMLEFT"
+    local relPoint = "TOPLEFT"
     local steps = math.abs(sx-ex);
 
     if ( tracePaths) then
@@ -861,7 +861,7 @@ end
 
 
 function LibSVG:DrawVLine(C, x, sy, ey, w, color, layer, bbox)
-    local relPoint = "BOTTOMLEFT"
+    local relPoint = "TOPLEFT"
     local svg = self;
 
     if not C.SVG_Lines then
@@ -894,10 +894,14 @@ function LibSVG:DrawVLine(C, x, sy, ey, w, color, layer, bbox)
         end
         if ( def ) then
             local sY, eY = bbox[2], bbox[4];
+            local sX, eX = bbox[1], bbox[3];
+            local a = ( x - sX ) / ( eX - sX);
+            local b = 1 - a;
             local sopacity, scolor = def.points[1].opacity * (color[4] or 1), def.points[1].color;
             local eopacity, ecolor = def.points[#def.points].opacity * (color[4] or 1), def.points[#def.points].color;
+            T:SetVertexColor((scolor[1]*a) + (ecolor[1]*b), (scolor[2]*a) + (ecolor[2]*b), (scolor[3]*a) + (ecolor[3]*b), (sopacity*a) + (eopacity*b));
 
-            --T:SetGradientAlpha("horizontal", scolor[1], scolor[2],scolor[3], sopacity, ecolor[1], ecolor[2],ecolor[3], eopacity);
+--            T:SetGradientAlpha("horizontal", scolor[1]*at, scolor[2]*at,scolor[3]*at, sopacity, ecolor[1], ecolor[2],ecolor[3], eopacity);
         end
     end
 
@@ -911,7 +915,7 @@ function LibSVG:DrawVLine(C, x, sy, ey, w, color, layer, bbox)
 end
 
 function LibSVG:DrawHLine(C, y, sx, ex, w, color, layer, bbox)
-    local relPoint = "BOTTOMLEFT"
+    local relPoint = "TOPLEFT"
     local svg = self;
     if not C.SVG_Lines then
         C.SVG_Lines={}
