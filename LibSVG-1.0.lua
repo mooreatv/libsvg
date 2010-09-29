@@ -192,7 +192,7 @@ LibSVG.colors = {
 
 function LibSVG:New()
     local svg = {};
-    svg.detail = 1.33; -- default quality is 75
+    svg.detail = 100/70; -- default quality is 70% (which will suffice for most images)
     svg.fill = true;
     svg.Parse = LibSVG.Parse;
     svg.Compile = LibSVG.Compile;
@@ -292,6 +292,7 @@ function LibSVG:Compile(xml, group)
     svg.CompiledArgs = svg.CompiledArgs or 0;
     local group = group or svg.CompiledData;
     group.children = {};
+	local svg_CompiledArgs = 0;
 
     for i = 1, #xml do
         local el = xml[i];
@@ -300,6 +301,7 @@ function LibSVG:Compile(xml, group)
             el.args = el.args or {};
             object.tracePaths = {};
             object.lines = {};
+			local object_lines = object.lines;
             object.strings = {};
             object.transformations = object.transformations or {};
             tinsert(group.children, object);
@@ -339,18 +341,22 @@ function LibSVG:Compile(xml, group)
                     end
                 end
             end
-            object.stroke = (tonumber((el.args['stroke-width'] or ""):match("([%d%.%-]+)")) or 1)*1
+            object.stroke = (tonumber((el.args['stroke-width'] or ""):match("([%d%.%-]+)")) or 0)
             if ( el.args['stroke-width'] == "none" ) then object.stroke = 0; end
             object.color = LibSVG_ParseColor(el.args.stroke);
             object.fill = LibSVG_ParseColor(el.args.fill);
             if ( el.args.style ) then
                 local style = el.args.style;
 				for key, val in style:gmatch("([%a%-]-)%:([^;]+)") do
+					key = key:lower();
 					if		( key == "fill" ) then object.fill = LibSVG_ParseColor(val);
 					elseif	( key == "fill-opacity" and object.fill ) then object.fill[4] = tonumber(val) or 0;
-					elseif ( key =="stroke" ) then object.color = LibSVG_ParseColor(val);
+					elseif ( key == "stroke" ) then object.color = LibSVG_ParseColor(val); if ( val:lower() == "none" ) then object.stroke = 0; end
 					elseif ( key == "stroke-opacity" and object.color ) then object.color[4] = tonumber(val) or 0;
-                    elseif ( key == "stroke-width" ) then if ( val:lower() == "none" ) then object.stroke = 0; else  object.stroke = (tonumber(val) or 1)*1; end
+                    elseif ( key == "stroke-width" ) then if ( val:lower() == "none" ) then object.stroke = 0; else object.stroke = (tonumber(val) or 0); end
+					elseif ( key == "opacity" ) then
+						if ( object.color ) then object.color[4] = object.color[4] * tonumber(val) or 0; end
+						if ( object.fill ) then object.fill[4] = object.fill[4] * tonumber(val) or 0; end
                     end
                 end
             end
@@ -363,13 +369,9 @@ function LibSVG:Compile(xml, group)
             --object.color = LibSVG.colors.black;
             --object.stroke = 2;
 
-            object.canvas = CreateFrame("Frame", svg.canvas);
+            object.canvas = CreateFrame("Frame");
             object.canvas:SetParent(svg.canvas);
             object.canvas:SetAllPoints();
-            object.canvas:IgnoreDepth(true);
-            object.canvas:DisableDrawLayer("HIGHLIGHT");
-            object.canvas:DisableDrawLayer("BORDER");
-            object.canvas:DisableDrawLayer("OVERLAY");
 
 
             if ( el.class == "defs" ) then
@@ -388,8 +390,8 @@ function LibSVG:Compile(xml, group)
                     local eX = (sin(y) * radius) + cX;
                     local eY = (cos(y) * radius) + cY;
                     if ( sX and sY ) then
-                        tinsert(object.lines, {sX, sY, eX, eY});
-                        svg.CompiledArgs = svg.CompiledArgs + 1;
+                        tinsert(object_lines, {sX, sY, eX, eY});
+                        svg_CompiledArgs = svg_CompiledArgs + 1;
                     end
                     sX = eX;
                     sY = eY;
@@ -408,8 +410,8 @@ function LibSVG:Compile(xml, group)
                     local eX = (sin(y) * rX) + cX;
                     local eY = (cos(y) * rY) + cY;
                     if ( sX and sY ) then
-                        tinsert(object.lines, {sX, sY, eX, eY});
-                        svg.CompiledArgs = svg.CompiledArgs + 1;
+                        tinsert(object_lines, {sX, sY, eX, eY});
+                        svg_CompiledArgs = svg_CompiledArgs + 1;
                     end
                     sX = eX;
                     sY = eY;
@@ -419,13 +421,13 @@ function LibSVG:Compile(xml, group)
                 local y = tonumber(el.args.y) or 0;
                 local width = tonumber(el.args.width) or 1;
                 local height = tonumber(el.args.height) or 1;
-                tinsert(object.lines, {x, y, x+width, y});
-                tinsert(object.lines, {x, y, x, y+height});
-                tinsert(object.lines, {x+width, y, x+width, y+height});
-                tinsert(object.lines, {x, y+height, x+width, y+height});
+                tinsert(object_lines, {x, y, x+width, y});
+                tinsert(object_lines, {x, y, x, y+height});
+                tinsert(object_lines, {x+width, y, x+width, y+height});
+                tinsert(object_lines, {x, y+height, x+width, y+height});
                 object.fillPath = {'r', x, y, x+width, y+height};
 
-                svg.CompiledArgs = svg.CompiledArgs + 4;
+                svg_CompiledArgs = svg_CompiledArgs + 4;
             elseif ( el.class == "polygon" ) then
                 local sX, sY = nil,nil;
                 local fX, fY = nil, nil;
@@ -434,8 +436,8 @@ function LibSVG:Compile(xml, group)
                     eX = tonumber(x) or 0;
                     eY = tonumber(y) or 0;
                     if ( sX ~= nil ) then
-                        tinsert(object.lines, {sX, sY, eX, eY});
-                        svg.CompiledArgs = svg.CompiledArgs + 1;
+                        tinsert(object_lines, {sX, sY, eX, eY});
+                        svg_CompiledArgs = svg_CompiledArgs + 1;
                     end
                     sX = eX;
                     sY = eY;
@@ -445,8 +447,8 @@ function LibSVG:Compile(xml, group)
                     end
                 end
                 if ( fX ~= nil and eX ~= nil ) then
-                    tinsert(object.lines, {fX, fY, eX, eY});
-                    svg.CompiledArgs = svg.CompiledArgs + 1;
+                    tinsert(object_lines, {fX, fY, eX, eY});
+                    svg_CompiledArgs = svg_CompiledArgs + 1;
                 end
 
             elseif ( el.class == "polyline" ) then
@@ -456,8 +458,8 @@ function LibSVG:Compile(xml, group)
                     eX = tonumber(x) or 0;
                     eY = tonumber(y) or 0;
                     if ( sX ~= nil ) then
-                        tinsert(object.lines, {sX, sY, eX, eY});
-                        svg.CompiledArgs = svg.CompiledArgs + 1;
+                        tinsert(object_lines, {sX, sY, eX, eY});
+                        svg_CompiledArgs = svg_CompiledArgs + 1;
                     end
                     sX = eX;
                     sY = eY;
@@ -516,8 +518,8 @@ function LibSVG:Compile(xml, group)
                             eY = v[2];
                             if ( rel ) then eX = sX + eX; eY = sY + eY;
                             end
-                            tinsert(object.lines, {sX, sY, eX, eY});
-                            svg.CompiledArgs = svg.CompiledArgs + 1;
+                            tinsert(object_lines, {sX, sY, eX, eY});
+                            svg_CompiledArgs = svg_CompiledArgs + 1;
                             sX = eX;
                             sY = eY;
                         end
@@ -571,8 +573,8 @@ function LibSVG:Compile(xml, group)
                                     ;
                                 local cangle = deg(atan((eY-sY)/(eX-sX)));
                                 if ( pangle == nil or abs(pangle-cangle) > svg.detail or n == trace ) then
-                                    tinsert(object.lines, {sX, sY, eX, eY});
-                                    svg.CompiledArgs = svg.CompiledArgs + 1;
+                                    tinsert(object_lines, {sX, sY, eX, eY});
+                                    svg_CompiledArgs = svg_CompiledArgs + 1;
                                     sX = eX;
                                     sY = eY;
                                     pangle = cangle;
@@ -592,8 +594,8 @@ function LibSVG:Compile(xml, group)
                                 local t = n / trace;
                                 eX = ( ( sqrt(1-t) * p0[1] ) + ( 2* (1-t) * t * p1[1] ) + (pow(t, 2)*p2[1]) );
                                 eY = ( ( sqrt(1-t) * p0[2] ) + ( 2* (1-t) * t * p1[2] ) + (pow(t, 2)*p2[2]) );
-                                tinsert(object.lines, {sX, sY, eX, eY});
-                                svg.CompiledArgs = svg.CompiledArgs + 1;
+                                tinsert(object_lines, {sX, sY, eX, eY});
+                                svg_CompiledArgs = svg_CompiledArgs + 1;
                                 sX = eX;
                                 sY = eY;
                             end
@@ -678,8 +680,8 @@ function LibSVG:Compile(xml, group)
                                 local cangle = deg(atan((eY-sY)/(eX-sX)));
                                 if ( pangle == nil or abs(pangle-cangle) > svg.detail or n == m ) then
                                     --if ( sX and sY ) then
-                                        tinsert(object.lines, {sX, sY, eX, eY});
-                                        svg.CompiledArgs = svg.CompiledArgs + 1;
+                                        tinsert(object_lines, {sX, sY, eX, eY});
+                                        svg_CompiledArgs = svg_CompiledArgs + 1;
                                     --end
                                     sX = eX;
                                     sY = eY;
@@ -693,8 +695,8 @@ function LibSVG:Compile(xml, group)
                         end
                     elseif ( c == "Z" ) then
                         if ( fX and fY and eX and eY ) then
-                            tinsert(object.lines, {eX,eY,fX,fY});
-                            svg.CompiledArgs = svg.CompiledArgs + 1;
+                            tinsert(object_lines, {eX,eY,fX,fY});
+                            svg_CompiledArgs = svg_CompiledArgs + 1;
                         end
                         sX = eX;
                         sY = eY;
@@ -713,6 +715,7 @@ function LibSVG:Compile(xml, group)
             end
         end
     end
+	svg.CompiledArgs = svg.CompiledArgs + svg_CompiledArgs;
     return svg.CompiledArgs;
 end
 
@@ -738,7 +741,7 @@ function LibSVG:RenderReal(object)
     svg.X = svg.X + 1;
     --svg.CompiledData = svg.CompiledData or {};
     local object = object or svg.CompiledData;
-    --object.canvas:SetFrameLevel(svg.X);
+    object.canvas:SetFrameLevel(svg.X);
     if ( object.fill ) then
         object.tracePaths = {};
     else
@@ -817,10 +820,9 @@ function LibSVG:RenderReal(object)
                     local n = 1;
                     for i = 1, #v-1 do
                         local Y = v[#v-i];
-                    --    if ( Y ~= prev ) then
                             n = n + 1;
                             if ( fmod(n,2) == 0 ) then
-                                if ( Y ~= prev ) then
+                                if ( abs(prev-Y) >= 1 ) then
                                     if ( LibSVG.isCata ) then
                                         self:DrawVLine(object.canvas,k,prev,Y,2, object.fill, -1, object.bbox, object.transformations);
                                     else
@@ -828,7 +830,6 @@ function LibSVG:RenderReal(object)
                                     end
                                 end
                             end
-                    --    end
                         prev = Y;
                     end
                 end
@@ -897,7 +898,6 @@ function LibSVG:DrawLine(C, sx, sy, ex, ey, w, color, transforms, tracePaths)
         for i = 1, steps do
             local x = sx + ((ex-sx) * (i / steps));
             local y = sy + ((ey-sy) * ( i / steps));
-            --if ( y < 0 ) then y = floor(y + 0.5); else y = floor(y - 0.5); end
             if ( not tracePaths[x] ) then tracePaths[x] = {}; end
             tinsert(tracePaths[x], y);
         end
