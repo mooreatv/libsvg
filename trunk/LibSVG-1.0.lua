@@ -41,6 +41,10 @@ do
     end
 end
 
+-- Upvalues, yaaaay
+local
+	cos,acos,sin,asin,tan,atan,floor,sqrt,abs,pow,tinsert,tremove,max,min,pi,rad,deg,fmod =
+	math.cos, math.acos, math.sin, math.asin, math.tan, math.atan, math.floor, math.sqrt, math.abs, math.pow, tinsert, tremove, math.max, math.min, math.pi, math.rad, math.deg, math.fmod;
 
 LibSVG.colors = {
 	black = {0.000,0.000,0.000,1},
@@ -251,7 +255,7 @@ function LibSVG:CompileDefs(xml)
                         x.color = LibSVG.ParseColor(arg.args.style:match("stop%-color:([^;]+)"));
                         x.opacity = tonumber(arg.args.style:match("stop%-opacity:([^;]+)")) or 1;
                     end
-                    table.insert(def.points, x);
+                    tinsert(def.points, x);
                 end
             end
             if ( el.args['xlink:href'] and el.args['xlink:href']:sub(1,1) == "#" ) then
@@ -265,7 +269,7 @@ function LibSVG:CompileDefs(xml)
                 end
             end
             def.x1, def.y1, def.x2, def.y2 = tonumber(el.args.x1) or 0,tonumber(el.args.y1) or 0,tonumber(el.args.x2) or 0,tonumber(el.args.y2) or 0;
-            table.insert(svg.defs, def);
+            tinsert(svg.defs, def);
             --print("Added definition:", def.id);
         end
     end
@@ -298,10 +302,10 @@ function LibSVG:Compile(xml, group)
             object.lines = {};
             object.strings = {};
             object.transformations = object.transformations or {};
-            table.insert(group.children, object);
+            tinsert(group.children, object);
             if ( group.transformations ) then
                 for k, v in pairs(group.transformations) do
-                    table.insert(object.transformations, v);
+                    tinsert(object.transformations, v);
                 end
             end
             if ( el.args.transform ) then
@@ -312,26 +316,26 @@ function LibSVG:Compile(xml, group)
                     end
                     method = method:lower();
                     if ( method == "matrix" ) then
-                        table.insert(object.transformations, { (n[1] or 0), (n[2] or 0), (n[3] or 0), (n[4] or 0), (n[5] or 0), (n[6] or 0)});
+                        tinsert(object.transformations, { (n[1] or 0), (n[2] or 0), (n[3] or 0), (n[4] or 0), (n[5] or 0), (n[6] or 0)});
                     elseif ( method == "translate" ) then
-                        table.insert(object.transformations, {1, 0, 0, 1, n[1] or 0, n[2] or 0});
+                        tinsert(object.transformations, {1, 0, 0, 1, n[1] or 0, n[2] or 0});
                     elseif ( method == "scale" ) then
-                        table.insert(object.transformations, {n[1], 0, 0, n[2], 0, 0});
+                        tinsert(object.transformations, {n[1], 0, 0, n[2], 0, 0});
                     elseif ( method == "rotate" ) then
-                        local a, x, y = math.rad(n[1] or 0), n[2], n[3];
+                        local a, x, y = rad(n[1] or 0), n[2], n[3];
                         if ( not x or not y ) then
-                            table.insert(object.transformations, {math.cos(a),math.sin(a),-math.sin(a),math.cos(a),0,0});
+                            tinsert(object.transformations, {cos(a),sin(a),-sin(a),cos(a),0,0});
                         else
-                            table.insert(object.transformations, {1, 0, 0, 1, (x or 0), (y or 0)});
-                            table.insert(object.transformations, {math.cos(a),math.sin(a),-math.sin(a),math.cos(a),0,0});
-                            table.insert(object.transformations, {1, 0, 0, 1, -(x or 0), -(y or 0)});
+                            tinsert(object.transformations, {1, 0, 0, 1, (x or 0), (y or 0)});
+                            tinsert(object.transformations, {cos(a),sin(a),-sin(a),cos(a),0,0});
+                            tinsert(object.transformations, {1, 0, 0, 1, -(x or 0), -(y or 0)});
                         end
                     elseif ( method == "skewx" ) then
-                        local a = math.rad(n[1] or 0);
-                        table.insert(object.transformations, {1, 0, math.tan(a), 1, 0, 0});
+                        local a = rad(n[1] or 0);
+                        tinsert(object.transformations, {1, 0, tan(a), 1, 0, 0});
                     elseif ( method == "skewy" ) then
-                        local a = math.rad(n[1] or 0);
-                        table.insert(object.transformations, {1, math.tan(a), 0, 1, 0, 0});
+                        local a = rad(n[1] or 0);
+                        tinsert(object.transformations, {1, tan(a), 0, 1, 0, 0});
                     end
                 end
             end
@@ -394,11 +398,11 @@ function LibSVG:Compile(xml, group)
                 object.fillPath = {'c', cX, cY, radius};
 
                 for x = 0, radius do
-                    local y = (x/radius) * math.pi * 2;
-                    local eX = (math.sin(y) * radius) + cX;
-                    local eY = (math.cos(y) * radius) + cY;
+                    local y = (x/radius) * pi * 2;
+                    local eX = (sin(y) * radius) + cX;
+                    local eY = (cos(y) * radius) + cY;
                     if ( sX and sY ) then
-                        table.insert(object.lines, {sX, sY, eX, eY});
+                        tinsert(object.lines, {sX, sY, eX, eY});
                         svg.CompiledArgs = svg.CompiledArgs + 1;
                     end
                     sX = eX;
@@ -410,15 +414,15 @@ function LibSVG:Compile(xml, group)
                 local rY = tonumber(el.args.ry) or 10;
                 local cX = tonumber(el.args.cx) or 0;
                 local cY = tonumber(el.args.cy) or 0;
-                local m = math.max(rX, rY);
+                local m = max(rX, rY);
                 object.fillPath = {'e', cX, cY, rX, rY};
                 for n = 0, m do
-                    local y = (n/m) * math.pi * 2;
-                    local x = (n/m) * math.pi * 2;
-                    local eX = (math.sin(y) * rX) + cX;
-                    local eY = (math.cos(y) * rY) + cY;
+                    local y = (n/m) * pi * 2;
+                    local x = (n/m) * pi * 2;
+                    local eX = (sin(y) * rX) + cX;
+                    local eY = (cos(y) * rY) + cY;
                     if ( sX and sY ) then
-                        table.insert(object.lines, {sX, sY, eX, eY});
+                        tinsert(object.lines, {sX, sY, eX, eY});
                         svg.CompiledArgs = svg.CompiledArgs + 1;
                     end
                     sX = eX;
@@ -429,10 +433,10 @@ function LibSVG:Compile(xml, group)
                 local y = tonumber(el.args.y) or 0;
                 local width = tonumber(el.args.width) or 1;
                 local height = tonumber(el.args.height) or 1;
-                table.insert(object.lines, {x, y, x+width, y});
-                table.insert(object.lines, {x, y, x, y+height});
-                table.insert(object.lines, {x+width, y, x+width, y+height});
-                table.insert(object.lines, {x, y+height, x+width, y+height});
+                tinsert(object.lines, {x, y, x+width, y});
+                tinsert(object.lines, {x, y, x, y+height});
+                tinsert(object.lines, {x+width, y, x+width, y+height});
+                tinsert(object.lines, {x, y+height, x+width, y+height});
                 object.fillPath = {'r', x, y, x+width, y+height};
 
                 svg.CompiledArgs = svg.CompiledArgs + 4;
@@ -444,7 +448,7 @@ function LibSVG:Compile(xml, group)
                     eX = tonumber(x) or 0;
                     eY = tonumber(y) or 0;
                     if ( sX ~= nil ) then
-                        table.insert(object.lines, {sX, sY, eX, eY});
+                        tinsert(object.lines, {sX, sY, eX, eY});
                         svg.CompiledArgs = svg.CompiledArgs + 1;
                     end
                     sX = eX;
@@ -455,7 +459,7 @@ function LibSVG:Compile(xml, group)
                     end
                 end
                 if ( fX ~= nil and eX ~= nil ) then
-                    table.insert(object.lines, {fX, fY, eX, eY});
+                    tinsert(object.lines, {fX, fY, eX, eY});
                     svg.CompiledArgs = svg.CompiledArgs + 1;
                 end
 
@@ -466,7 +470,7 @@ function LibSVG:Compile(xml, group)
                     eX = tonumber(x) or 0;
                     eY = tonumber(y) or 0;
                     if ( sX ~= nil ) then
-                        table.insert(object.lines, {sX, sY, eX, eY});
+                        tinsert(object.lines, {sX, sY, eX, eY});
                         svg.CompiledArgs = svg.CompiledArgs + 1;
                     end
                     sX = eX;
@@ -485,7 +489,7 @@ function LibSVG:Compile(xml, group)
                 end
                 object.x = ax;
                 object.y = ay;
-                table.insert(object.strings, {ax, ay, size, text});
+                tinsert(object.strings, {ax, ay, size, text});
                 svg:Compile(el, object); -- in case we have tspans inside
           elseif ( el.class == "path" ) then
                 el.args.d = (el.args.d or "y") .. " 0y0"; -- kludge
@@ -500,7 +504,7 @@ function LibSVG:Compile(xml, group)
                         c = string.upper(c);
                     end
                     v:gsub("([%d%-%.]+)([^%d%-%.]+)([%d%-%.]+)", function (x, _, y)
-                        table.insert(coords, {tonumber(x),tonumber(y)});
+                        tinsert(coords, {tonumber(x),tonumber(y)});
                     end);
 
                     if ( c == "M" ) then
@@ -516,7 +520,7 @@ function LibSVG:Compile(xml, group)
                         eX,eY = sX,sY;
                         xX, xY = sX, sY;
                         if ( #coords > 1 ) then
-                            table.remove(coords, 1);
+                            tremove(coords, 1);
                             c = "L";
                         end
                     end
@@ -526,7 +530,7 @@ function LibSVG:Compile(xml, group)
                             eY = v[2];
                             if ( rel ) then eX = sX + eX; eY = sY + eY;
                             end
-                            table.insert(object.lines, {sX, sY, eX, eY});
+                            tinsert(object.lines, {sX, sY, eX, eY});
                             svg.CompiledArgs = svg.CompiledArgs + 1;
                             sX = eX;
                             sY = eY;
@@ -539,13 +543,13 @@ function LibSVG:Compile(xml, group)
                         end
                         --print("old point", xX, xY, "current", sX, sY, "reflected", sX+dX, sY+dY);
                         if ( not rel ) then
-                            table.insert(coords, 1, {sX+dX, sY+dY});
+                            tinsert(coords, 1, {sX+dX, sY+dY});
                         else
-                            table.insert(coords, 1, {dX, dY});
+                            tinsert(coords, 1, {dX, dY});
                         end
                     end
                     if ( c == "C" ) then
-                        for i = 0, math.floor((#coords/3)-1) do
+                        for i = 0, floor((#coords/3)-1) do
                             local p = (i*3)+1;
                             local p0 = {sX,sY};
                             local p1 = coords[p];
@@ -561,28 +565,28 @@ function LibSVG:Compile(xml, group)
                             end
 
                             -- Number of traces equals the shortest distance between the farthest points.
-                            local trace = math.floor(2 + math.min(
-                                math.abs(math.max(p0[1],p1[1],p2[1],p3[1]) - math.min(p0[1],p1[1],p2[1],p3[1])),
-                                math.abs(math.max(p0[2],p1[2],p2[2],p3[2]) - math.min(p0[2],p1[2],p2[2],p3[2]))
+                            local trace = floor(2 + min(
+                                abs(max(p0[1],p1[1],p2[1],p3[1]) - min(p0[1],p1[1],p2[1],p3[1])),
+                                abs(max(p0[2],p1[2],p2[2],p3[2]) - min(p0[2],p1[2],p2[2],p3[2]))
                             )/svg.detail);
                             local pangle = nil;
                             for n = 1, trace do
                                 local t = n / trace;
                                 eX =
-                                    ( math.pow(1-t, 3) * p0[1] ) +
-                                    ( 3 * math.pow(1-t, 2) * t * p1[1] ) +
-                                    ( 3 * (1-t) * math.pow(t,2) * p2[1] ) +
-                                    ( math.pow(t, 3) * p3[1] )
+                                    ( pow(1-t, 3) * p0[1] ) +
+                                    ( 3 * pow(1-t, 2) * t * p1[1] ) +
+                                    ( 3 * (1-t) * pow(t,2) * p2[1] ) +
+                                    ( pow(t, 3) * p3[1] )
                                     ;
                                 eY =
-                                    ( math.pow(1-t, 3) * p0[2] ) +
-                                    ( 3 * math.pow(1-t, 2) * t * p1[2] ) +
-                                    ( 3 * (1-t) * math.pow(t,2) * p2[2] ) +
-                                    ( math.pow(t, 3) * p3[2] )
+                                    ( pow(1-t, 3) * p0[2] ) +
+                                    ( 3 * pow(1-t, 2) * t * p1[2] ) +
+                                    ( 3 * (1-t) * pow(t,2) * p2[2] ) +
+                                    ( pow(t, 3) * p3[2] )
                                     ;
-                                local cangle = math.deg(math.atan((eY-sY)/(eX-sX)));
-                                if ( pangle == nil or math.abs(pangle-cangle) > svg.detail or n == trace ) then
-                                    table.insert(object.lines, {sX, sY, eX, eY});
+                                local cangle = deg(atan((eY-sY)/(eX-sX)));
+                                if ( pangle == nil or abs(pangle-cangle) > svg.detail or n == trace ) then
+                                    tinsert(object.lines, {sX, sY, eX, eY});
                                     svg.CompiledArgs = svg.CompiledArgs + 1;
                                     sX = eX;
                                     sY = eY;
@@ -593,7 +597,7 @@ function LibSVG:Compile(xml, group)
                             sX, sY = p3[1], p3[2]
                         end
                     elseif ( c == "Q" ) then
-                        for i = 0, math.floor((#coords/3)-1) do
+                        for i = 0, floor((#coords/3)-1) do
                             local p = (i*4)+1;
                             local p0 = coords[p];
                             local p1 = coords[p+1];
@@ -601,9 +605,9 @@ function LibSVG:Compile(xml, group)
                             local trace = 10;
                             for n = 1, trace do
                                 local t = n / trace;
-                                eX = ( ( math.sqrt(1-t) * p0[1] ) + ( 2* (1-t) * t * p1[1] ) + (math.pow(t, 2)*p2[1]) );
-                                eY = ( ( math.sqrt(1-t) * p0[2] ) + ( 2* (1-t) * t * p1[2] ) + (math.pow(t, 2)*p2[2]) );
-                                table.insert(object.lines, {sX, sY, eX, eY});
+                                eX = ( ( sqrt(1-t) * p0[1] ) + ( 2* (1-t) * t * p1[1] ) + (pow(t, 2)*p2[1]) );
+                                eY = ( ( sqrt(1-t) * p0[2] ) + ( 2* (1-t) * t * p1[2] ) + (pow(t, 2)*p2[2]) );
+                                tinsert(object.lines, {sX, sY, eX, eY});
                                 svg.CompiledArgs = svg.CompiledArgs + 1;
                                 sX = eX;
                                 sY = eY;
@@ -615,27 +619,27 @@ function LibSVG:Compile(xml, group)
                                 x = x + sX;
                                 y = y + sY;
                             end
-                            large_arc_flag = math.floor(tonumber(large_arc_flag));
-                            sweep_flag = math.floor(tonumber(sweep_flag));
+                            large_arc_flag = floor(tonumber(large_arc_flag));
+                            sweep_flag = floor(tonumber(sweep_flag));
                             local x0,y0 = sX, sY;
                             local dx2, dy2 = (x0-x)/2, (y0-y)/2;
-                            local theta = math.rad(tonumber(angle));
+                            local theta = rad(tonumber(angle));
 
                             -- Find x1,y1
-                            local x1 = (math.cos(theta) * dx2 + math.sin(theta) * dy2);
-                            local y1 = (-math.sin(theta) * dx2 + math.cos(theta) * dy2);
+                            local x1 = (cos(theta) * dx2 + sin(theta) * dy2);
+                            local y1 = (-sin(theta) * dx2 + cos(theta) * dy2);
 
                             -- Radii check
-                            local rx = math.abs(rX);
-                            local ry = math.abs(rY);
+                            local rx = abs(rX);
+                            local ry = abs(rY);
                             local Prx = rx * rx;
                             local Pry = ry * ry;
                             local Px1 = x1 * x1;
                             local Py1 = y1 * y1;
                             local d = Px1 / Prx + Py1 / Pry;
                             if (d > 1) then
-                                rx = math.abs((math.sqrt(d) * rx));
-                                ry = math.abs((math.sqrt(d) * ry));
+                                rx = abs((sqrt(d) * rx));
+                                ry = abs((sqrt(d) * ry));
                                 Prx = rx * rx;
                                 Pry = ry * ry;
                             end
@@ -643,15 +647,15 @@ function LibSVG:Compile(xml, group)
                             -- Find cx1, cy1
                             local sign = 1;
                             if (large_arc_flag == sweep_flag) then sign = -1; end
-                            local coef = (sign * math.sqrt(((Prx * Pry) - (Prx * Py1) - (Pry * Px1)) / ((Prx * Py1) + (Pry * Px1))));
+                            local coef = (sign * sqrt(((Prx * Pry) - (Prx * Py1) - (Pry * Px1)) / ((Prx * Py1) + (Pry * Px1))));
                             local cx1 = coef * ((rx * y1) / ry);
                             local cy1 = coef * -((ry * x1) / rx);
 
                             -- Find (cx, cy) from (cx1, cy1)
                             local sx2 = (x0 + x) / 2;
                             local sy2 = (y0 + y) / 2;
-                            local cx = sx2 + (math.cos(theta) * cx1 - math.sin(theta) * cy1);
-                            local cy = sy2 + (math.sin(theta) * cx1 + math.cos(theta) * cy1);
+                            local cx = sx2 + (cos(theta) * cx1 - sin(theta) * cy1);
+                            local cy = sy2 + (sin(theta) * cx1 + cos(theta) * cy1);
 
                             -- Compute the angleStart (theta1) and the angleExtent (dtheta)
                             local ux = (x1 - cx1) / rx;
@@ -660,36 +664,36 @@ function LibSVG:Compile(xml, group)
                             local vy = (-y1 - cy1) / ry;
                             local p, n;
 
-                            n =  math.sqrt((ux * ux) + (uy * uy));
+                            n =  sqrt((ux * ux) + (uy * uy));
                             p = ux; -- (1 * ux) + (0 * uy)
                             sign = 1;
                             if (uy < 0) then sign = -1; end
 
-                            local angleStart = (sign * math.acos(p / n));
+                            local angleStart = (sign * acos(p / n));
 
-                            n = math.sqrt((ux * ux + uy * uy) * (vx * vx + vy * vy));
+                            n = sqrt((ux * ux + uy * uy) * (vx * vx + vy * vy));
                             p = ux * vx + uy * vy;
                             sign = 1;
                             if (ux * vy - uy * vx < 0) then sign = -1; end
 
-                            local angleExtent = (sign * math.acos(p / n));
+                            local angleExtent = (sign * acos(p / n));
                             if (sweep_flag == 0 and angleExtent > 0) then
-                                angleExtent = angleExtent - (math.pi*2);
+                                angleExtent = angleExtent - (pi*2);
                             elseif (sweep_flag == 1 and angleExtent < 0) then
-                                    angleExtent = angleExtent + (math.pi*2);
+                                    angleExtent = angleExtent + (pi*2);
                             end
-                            angleExtent = math.fmod(angleExtent, math.pi*2);
-                            angleStart = math.fmod(angleStart, math.pi*2);
-                            local m = math.floor(math.max(rX, rY)/svg.detail)+1;
+                            angleExtent = fmod(angleExtent, pi*2);
+                            angleStart = fmod(angleStart, pi*2);
+                            local m = floor(max(rX, rY)/svg.detail)+1;
                             local pangle = nil;
                             for n = 1, m do
                                 local a = (-angleStart - (angleExtent * n / m));
-                                local eX = (math.cos(a) * rX) + cx;
-                                local eY = -(math.sin(a) * rY) + cy;
-                                local cangle = math.deg(math.atan((eY-sY)/(eX-sX)));
-                                if ( pangle == nil or math.abs(pangle-cangle) > svg.detail or n == m ) then
+                                local eX = (cos(a) * rX) + cx;
+                                local eY = -(sin(a) * rY) + cy;
+                                local cangle = deg(atan((eY-sY)/(eX-sX)));
+                                if ( pangle == nil or abs(pangle-cangle) > svg.detail or n == m ) then
                                     --if ( sX and sY ) then
-                                        table.insert(object.lines, {sX, sY, eX, eY});
+                                        tinsert(object.lines, {sX, sY, eX, eY});
                                         svg.CompiledArgs = svg.CompiledArgs + 1;
                                     --end
                                     sX = eX;
@@ -704,7 +708,7 @@ function LibSVG:Compile(xml, group)
                         end
                     elseif ( c == "Z" ) then
                         if ( fX and fY and eX and eY ) then
-                            table.insert(object.lines, {eX,eY,fX,fY});
+                            tinsert(object.lines, {eX,eY,fX,fY});
                             svg.CompiledArgs = svg.CompiledArgs + 1;
                         --	print("Closing", eX,eY,fX,fY);
                         end
@@ -781,10 +785,10 @@ function LibSVG:RenderReal(object)
             if ( f[1] == 'r' ) then
                 local ax,ay = LibSVG.transform(object.transformations, f[2], f[3]);
                 local bx,by = LibSVG.transform(object.transformations, f[4], f[5]);
-                local rotation = math.tan( ( bx-ax) / (by-ay) );
+                local rotation = tan( ( bx-ax) / (by-ay) );
                 if not C.SVG_Lines then C.SVG_Lines={} C.SVG_Lines_Used={} end
                 local T = tremove(C.SVG_Lines) or C:CreateTexture(nil, "BACKGROUND");
-                if ( math.abs(rotation) == 0 or math.abs(rotation) == ( math.pi/2) ) then
+                if ( abs(rotation) == 0 or abs(rotation) == ( pi/2) ) then
                     T:SetTexture(1,1,1,1);
                     tinsert(C.SVG_Lines_Used,T)
                     --T:SetDrawLayer("BACKGROUND", -1);
@@ -796,8 +800,8 @@ function LibSVG:RenderReal(object)
                     T:SetTexCoord(0,1,0,1);
                     s = true;
                 end
-                T:SetPoint("TOPLEFT", C, "TOPLEFT", math.min(ax,bx), math.max(-ay,-by));
-                T:SetPoint("BOTTOMRIGHT",   C, "TOPLEFT", math.max(ax,bx), math.min(-ay,-by));
+                T:SetPoint("TOPLEFT", C, "TOPLEFT", min(ax,bx), max(-ay,-by));
+                T:SetPoint("BOTTOMRIGHT",   C, "TOPLEFT", max(ax,bx), min(-ay,-by));
 
                 T:Show();
             elseif ( f[1] == 'c' ) then
@@ -832,7 +836,7 @@ function LibSVG:RenderReal(object)
                         local Y = v[#v-i];
                     --    if ( Y ~= prev ) then
                             n = n + 1;
-                            if ( math.fmod(n,2) == 0 ) then
+                            if ( fmod(n,2) == 0 ) then
                                 if ( Y ~= prev ) then
                                     if ( LibSVG.isCata ) then
                                         self:DrawVLine(object.canvas,k,prev,Y,2, object.fill, -1, object.bbox, object.transformations);
@@ -899,36 +903,36 @@ function LibSVG:DrawLine(C, sx, sy, ex, ey, w, color, transforms, tracePaths)
     sy = -sy;
     ey = -ey;
 
-    if ( sx < 0 ) then sx = math.floor(sx - 0.5); else sx = math.floor(sx + 0.5); end
-    if ( ex < 0 ) then ex = math.floor(ex - 0.5); else ex = math.floor(ex + 0.5); end
+    if ( sx < 0 ) then sx = floor(sx - 0.5); else sx = floor(sx + 0.5); end
+    if ( ex < 0 ) then ex = floor(ex - 0.5); else ex = floor(ex + 0.5); end
 
     local relPoint = "TOPLEFT"
-    local steps = math.abs(sx-ex);
+    local steps = abs(sx-ex);
 
     if ( tracePaths) then
         local py,px = nil, nil;
         for i = 1, steps do
             local x = sx + ((ex-sx) * (i / steps));
             local y = sy + ((ey-sy) * ( i / steps));
-            --if ( y < 0 ) then y = math.floor(y + 0.5); else y = math.floor(y - 0.5); end
+            --if ( y < 0 ) then y = floor(y + 0.5); else y = floor(y - 0.5); end
             if ( not tracePaths[x] ) then tracePaths[x] = {}; end
-            table.insert(tracePaths[x], y);
+            tinsert(tracePaths[x], y);
         end
     end
 --[[
-    if ( sy < 0 ) then sy = math.floor(sy - 0.5); else sy = math.floor(sy + 0.5); end
-    if ( ey < 0 ) then ey = math.floor(ey - 0.5); else ey = math.floor(ey + 0.5); end
+    if ( sy < 0 ) then sy = floor(sy - 0.5); else sy = floor(sy + 0.5); end
+    if ( ey < 0 ) then ey = floor(ey - 0.5); else ey = floor(ey + 0.5); end
 
     local relPoint = "BOTTOMLEFT"
-    local steps = math.abs(sy-ey);
+    local steps = abs(sy-ey);
 
     if ( tracePaths) then
         for i = 1, steps do
             local x = sx + ((ex-sx) * (i / steps));
             local y = sy + ((ey-sy) * ( i / steps));
-            --if ( y < 0 ) then y = math.floor(y + 0.5); else y = math.floor(y - 0.5); end
+            --if ( y < 0 ) then y = floor(y + 0.5); else y = floor(y - 0.5); end
             if ( not tracePaths[y] ) then tracePaths[y] = {}; end
-            table.insert(tracePaths[y], x);
+            tinsert(tracePaths[y], x);
         end
     end
 ]]
@@ -944,7 +948,7 @@ function LibSVG:DrawLine(C, sx, sy, ex, ey, w, color, transforms, tracePaths)
     end
     w = w * 30 * (256/254);
 
-    if ( math.abs( sx - ex) < 1 and math.abs(sy - ey) < 1 ) then -- lines that don't go anywhere makes me a sad panda.
+    if ( abs( sx - ex) < 1 and abs(sy - ey) < 1 ) then -- lines that don't go anywhere makes me a sad panda.
         return;
     end
     if not C.SVG then
@@ -1091,7 +1095,7 @@ function LibSVG:DrawVLine(C, x, sy, ey, w, color, layer, bbox, transforms)
 
     T:SetPoint("TOPLEFT", C, "TOPLEFT", x-(w/2), ey);
     T:SetWidth(w);
-    T:SetHeight(math.abs(sy-ey));
+    T:SetHeight(abs(sy-ey));
     T:Show()
     return T
 end
@@ -1142,21 +1146,21 @@ function LibSVG.ParseColor(color)
         if ( color:sub(1,1) == "#" ) then
             local ret = {};
             if ( color:len() == 4 ) then
-                string.gsub(color, "([0-9a-f])", function (x) table.insert(ret, tonumber(x, 16) / 15); end);
+                string.gsub(color, "([0-9a-fA-F])", function (x) tinsert(ret, tonumber(x, 16) / 15); end);
             else
-                string.gsub(color, "([0-9a-fA-F][0-9a-fA-F])", function (x) table.insert(ret, tonumber(x, 16) / 255); end);
+                string.gsub(color, "([0-9a-fA-F][0-9a-fA-F])", function (x) tinsert(ret, tonumber(x, 16) / 255); end);
             end
-            table.insert(ret, 1);
+            tinsert(ret, 1);
             return ret;
         elseif ( color:match("url%(#([^%)]+)%)") ) then
             local ret = color:match("url%(#([^%)]+)%)")
             return {def = ret};
         elseif ( color:match("%((%d+),(%d+),(%d+)%)") ) then
             local ret = {color:match("%((%d+),(%d+),(%d+)%)")};
-            table.insert(ret,1);
+            tinsert(ret,1);
             return ret;
-        elseif ( LibSVG.colors[color] ) then
-            return LibSVG.colors[color];
+        elseif ( LibSVG.colors[color:lower()] ) then
+            return LibSVG.colors[color:lower()];
         end
     end
     return nil;
