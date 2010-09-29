@@ -249,6 +249,11 @@ function LibSVG:Compile(xml, group)
             object.canvas = CreateFrame("Frame", svg.canvas);
             object.canvas:SetParent(svg.canvas);
             object.canvas:SetAllPoints();
+            object.canvas:IgnoreDepth(true);
+            object.canvas:DisableDrawLayer("HIGHLIGHT");
+            object.canvas:DisableDrawLayer("BORDER");
+            object.canvas:DisableDrawLayer("OVERLAY");
+
 
             if ( el.class == "defs" ) then
                 self:CompileDefs(el);
@@ -619,7 +624,7 @@ function LibSVG:RenderReal(object)
     svg.X = svg.X + 1;
     --svg.CompiledData = svg.CompiledData or {};
     local object = object or svg.CompiledData;
-    object.canvas:SetFrameLevel(svg.X);
+    --object.canvas:SetFrameLevel(svg.X);
     if ( object.fill ) then
         object.tracePaths = {};
     else
@@ -703,9 +708,9 @@ function LibSVG:RenderReal(object)
                             if ( math.fmod(n,2) == 0 ) then
                                 if ( Y ~= prev ) then
                                     if ( LibSVG.isCata ) then
-                                        self:DrawVLine(object.canvas,k,prev,Y,2, object.fill, -1, object.bbox);
+                                        self:DrawVLine(object.canvas,k,prev,Y,2, object.fill, -1, object.bbox, object.transformations);
                                     else
-                                        self:DrawVLine(object.canvas,k,prev,Y,2, object.fill, "BACKGROUND", object.bbox);
+                                        self:DrawVLine(object.canvas,k,prev,Y,2, object.fill, "BACKGROUND", object.bbox, object.transformations);
                                     end
                                 end
                             end
@@ -810,7 +815,7 @@ function LibSVG:DrawLine(C, sx, sy, ex, ey, w, color, transforms, tracePaths)
             return self:DrawHLine(C,sy,sx,ex,w, color, "ARTWORK", tracePaths)
         end
     end
-    w = w * 28 * (256/254);
+    w = w * 30 * (256/254);
 
     if ( math.abs( sx - ex) < 1 and math.abs(sy - ey) < 1 ) then -- lines that don't go anywhere makes me a sad panda.
         return;
@@ -886,7 +891,7 @@ end
 
 
 
-function LibSVG:DrawVLine(C, x, sy, ey, w, color, layer, bbox)
+function LibSVG:DrawVLine(C, x, sy, ey, w, color, layer, bbox, transforms)
     local relPoint = "TOPLEFT"
     local svg = self;
 
@@ -925,7 +930,15 @@ function LibSVG:DrawVLine(C, x, sy, ey, w, color, layer, bbox)
         if ( def ) then
             local sY, eY = bbox[2], bbox[4];
             local sX, eX = bbox[1], bbox[3];
-            local a = ( x - sX ) / ( eX - sX);
+            if ( def.x1 and def.x2 and transforms and def.type == "lineargradient" ) then
+                sX, sY = LibSVG.transform(transforms, def.x1, def.y1);
+                eX, eY = LibSVG.transform(transforms, def.x2, def.y2);
+                if ( eX < sX ) then
+                    sX, eX = eX, sX;
+                end
+            end
+            local l = (eX - sX); if ( l == 0 ) then l = 0.01; end
+            local a = ( x - sX ) / l;
             local fo, fc, fp = def.points[1].opacity * (color[4] or 1), def.points[1].color, 0;
             local eo, ec, ep = def.points[#def.points].opacity * (color[4] or 1), def.points[#def.points].color, 1;
             for n = 1, #def.points do
@@ -936,8 +949,11 @@ function LibSVG:DrawVLine(C, x, sy, ey, w, color, layer, bbox)
                 end
                 fo, fc, fp = def.points[n].opacity * (color[4] or 1), def.points[n].color, def.points[n].offset;
             end
-            local c = ( ep - a ) / ( ep - fp) ;
+            local z = (ep - fp);
+            if ( z == 0 ) then z = 0.5; end
+            local c = ( ep - a ) / z;
             local d = 1 - c;
+            if ( c + d > 1 ) then c, d = (c/(c+d)), (d/(c+d)); end
             T:SetVertexColor( (fc[1]*c)+(ec[1]*d), (fc[2]*c)+(ec[2]*d), (fc[3]*c)+(ec[3]*d), (fo*c)+(eo*d) );
         end
     end
