@@ -621,12 +621,14 @@ function LibSVG:RenderReal(object)
     if ( object.lines ) then
         local bbox = {0,0,0,0};
         for key, line in pairs(object.lines) do
-            local ax,ay,bx,by = tonumber(line[1]), tonumber(line[2]), tonumber(line[3]), tonumber(line[4]);
+            local sx,sy,ex,ey = tonumber(line[1]), tonumber(line[2]), tonumber(line[3]), tonumber(line[4]);
+            local ax,ay = LibSVG.transform(object.transformations, sx, sy);
+            local bx,by = LibSVG.transform(object.transformations, ex, ey);
             if ( ax < bbox[1] ) then bbox[1] = ax; end if ( ax > bbox[3] ) then bbox[3] = ax; end
             if ( bx < bbox[1] ) then bbox[1] = bx; end if ( bx > bbox[3] ) then bbox[3] = bx; end
             if ( ay < bbox[2] ) then bbox[2] = ay; end if ( ay > bbox[4] ) then bbox[4] = ay; end
             if ( by < bbox[2] ) then bbox[2] = by; end if ( by > bbox[4] ) then bbox[4] = by; end
-            self:DrawLine(object.canvas, ax,ay,bx,by, object.stroke, object.color, object.transformations, object.tracePaths);
+            self:DrawLine(object.canvas, sx,sy,ex,ey, object.stroke, object.color, object.transformations, object.tracePaths);
         end
         object.bbox = bbox;
     end
@@ -790,7 +792,7 @@ function LibSVG:DrawLine(C, sx, sy, ex, ey, w, color, transforms, tracePaths)
     if sy==ey then
         return self:DrawHLine(C,sy,sx,ex,w, color, "ARTWORK", tracePaths)
     end
-    w = w * 32 * (256/254);
+    w = w * 28 * (256/254);
 
     if ( math.abs( sx - ex) < 1 and math.abs(sy - ey) < 1 ) then -- lines that don't go anywhere makes me a sad panda.
         return;
@@ -848,11 +850,13 @@ function LibSVG:DrawLine(C, sx, sy, ex, ey, w, color, transforms, tracePaths)
     -- Set texture coordinates and anchors
 
     T:SetTexCoord(TLx, TLy, BLx, BLy, TRx, TRy, BRx, BRy);
-    --local h = 128 / w;
-    --T:SetTexCoord(1, 1, 0.5 - h, 0.5 + h);
-    --T:SetRotation(math.tan(dy/dx));
-    T:SetPoint("BOTTOMLEFT", C, relPoint, cx - Bwid, cy - Bhgt);
-    T:SetPoint("TOPRIGHT",   C, relPoint, cx + Bwid, cy + Bhgt);
+
+    T:SetPoint("TOPLEFT",   C, relPoint, cx - Bwid, cy + Bhgt);
+    T:SetWidth(Bwid*2);
+    T:SetHeight(Bhgt*2);
+
+    --T:SetPoint("BOTTOMLEFT", C, relPoint, cx - Bwid, cy - Bhgt);
+    --T:SetPoint("TOPRIGHT",   C, relPoint, cx + Bwid, cy + Bhgt);
 
     T:Show()
     return T
@@ -896,12 +900,19 @@ function LibSVG:DrawVLine(C, x, sy, ey, w, color, layer, bbox)
             local sY, eY = bbox[2], bbox[4];
             local sX, eX = bbox[1], bbox[3];
             local a = ( x - sX ) / ( eX - sX);
-            local b = 1 - a;
-            local sopacity, scolor = def.points[1].opacity * (color[4] or 1), def.points[1].color;
-            local eopacity, ecolor = def.points[#def.points].opacity * (color[4] or 1), def.points[#def.points].color;
-            T:SetVertexColor((scolor[1]*a) + (ecolor[1]*b), (scolor[2]*a) + (ecolor[2]*b), (scolor[3]*a) + (ecolor[3]*b), (sopacity*a) + (eopacity*b));
-
---            T:SetGradientAlpha("horizontal", scolor[1]*at, scolor[2]*at,scolor[3]*at, sopacity, ecolor[1], ecolor[2],ecolor[3], eopacity);
+            local fo, fc, fp = def.points[1].opacity * (color[4] or 1), def.points[1].color, 0;
+            local eo, ec, ep = def.points[#def.points].opacity * (color[4] or 1), def.points[#def.points].color, 1;
+            for n = 1, #def.points do
+                local d = def.points[n];
+                if ( d.offset >= a ) then
+                    eo, ec, ep = def.points[n].opacity * (color[4] or 1), def.points[n].color, def.points[n].offset;
+                    break;
+                end
+                fo, fc, fp = def.points[n].opacity * (color[4] or 1), def.points[n].color, def.points[n].offset;
+            end
+            local c = ( ep - a ) / ( ep - fp) ;
+            local d = 1 - c;
+            T:SetVertexColor( (fc[1]*c)+(ec[1]*d), (fc[2]*c)+(ec[2]*d), (fc[3]*c)+(ec[3]*d), (fo*c)+(eo*d) );
         end
     end
 
