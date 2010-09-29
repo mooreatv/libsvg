@@ -252,7 +252,7 @@ function LibSVG:CompileDefs(xml)
                     local x = {};
                     x.offset = tonumber(arg.args.offset) or 0;
                     if ( arg.args.style ) then
-                        x.color = LibSVG.ParseColor(arg.args.style:match("stop%-color:([^;]+)"));
+                        x.color = LibSVG_ParseColor(arg.args.style:match("stop%-color:([^;]+)"));
                         x.opacity = tonumber(arg.args.style:match("stop%-opacity:([^;]+)")) or 1;
                     end
                     tinsert(def.points, x);
@@ -341,30 +341,16 @@ function LibSVG:Compile(xml, group)
             end
             object.stroke = (tonumber((el.args['stroke-width'] or ""):match("([%d%.%-]+)")) or 1)*1
             if ( el.args['stroke-width'] == "none" ) then object.stroke = 0; end
-            object.color = LibSVG.ParseColor(el.args.stroke);
-            object.fill = LibSVG.ParseColor(el.args.fill);
+            object.color = LibSVG_ParseColor(el.args.stroke);
+            object.fill = LibSVG_ParseColor(el.args.fill);
             if ( el.args.style ) then
                 local style = el.args.style;
-                if ( style:match("fill:([^;]+)") ) then
-                    object.fill = LibSVG.ParseColor(style:match("fill:([^;]+)"));
-                end
-                if ( style:match("fill%-opacity:([^;]+)") ) then
-                    if ( object.fill ) then
-                        object.fill[4] = style:match("fill%-opacity:([^;]+)");
-                    end
-                end
-                if ( style:match("stroke:([^;]+)") ) then
-                    object.color = LibSVG.ParseColor(style:match("stroke:([^;]+)"));
-                end
-                if ( style:match("stroke%-opacity:([^;]+)") ) then
-                    if ( object.color ) then
-                        object.color[4] = style:match("stroke%-opacity:([^;]+)");
-                    end
-                end
-                if ( style:match("stroke%-width:([%d%.%-]+)") ) then
-                    if ( style:match("stroke%-width:(none)") ) then stroke = 0;
-                    else
-                        object.stroke = (tonumber(style:match("stroke%-width:([%d%.%-]+)")) or 1)*1
+				for key, val in style:gmatch("([%a%-]-)%:([^;]+)") do
+					if		( key == "fill" ) then object.fill = LibSVG_ParseColor(val);
+					elseif	( key == "fill-opacity" and object.fill ) then object.fill[4] = tonumber(val) or 0;
+					elseif ( key =="stroke" ) then object.color = LibSVG_ParseColor(val);
+					elseif ( key == "stroke-opacity" and object.color ) then object.color[4] = tonumber(val) or 0;
+                    elseif ( key == "stroke-width" ) then if ( val:lower() == "none" ) then object.stroke = 0; else  object.stroke = (tonumber(val) or 1)*1; end
                     end
                 end
             end
@@ -492,11 +478,11 @@ function LibSVG:Compile(xml, group)
                 tinsert(object.strings, {ax, ay, size, text});
                 svg:Compile(el, object); -- in case we have tspans inside
           elseif ( el.class == "path" ) then
-                el.args.d = (el.args.d or "y") .. " 0y0"; -- kludge
+                el.args.d = (el.args.d or "y") .. "y"; -- kludge
                 local sX, sY = 0,0;
                 local xX, xY = nil,nil;
                 local fX, fY = nil,nil;
-                for c, v in (el.args.d or ""):gmatch("(%a)([^%a]+)") do
+                for c, v in (el.args.d or ""):gmatch("(%a)([^%a]*)") do
                     local coords = {};
                     local rel = false;
                     if ( c == string.lower(c) ) then    -- If relative coords are sent, translate them
@@ -541,7 +527,6 @@ function LibSVG:Compile(xml, group)
                         if ( xX and xY ) then
                             dX, dY = sX-xX,sY-xY;
                         end
-                        --print("old point", xX, xY, "current", sX, sY, "reflected", sX+dX, sY+dY);
                         if ( not rel ) then
                             tinsert(coords, 1, {sX+dX, sY+dY});
                         else
@@ -710,9 +695,7 @@ function LibSVG:Compile(xml, group)
                         if ( fX and fY and eX and eY ) then
                             tinsert(object.lines, {eX,eY,fX,fY});
                             svg.CompiledArgs = svg.CompiledArgs + 1;
-                        --	print("Closing", eX,eY,fX,fY);
                         end
-
                         sX = eX;
                         sY = eY;
                         fX = sX;
@@ -766,8 +749,8 @@ function LibSVG:RenderReal(object)
         local bbox = {0,0,0,0};
         for key, line in pairs(object.lines) do
             local sx,sy,ex,ey = tonumber(line[1]), tonumber(line[2]), tonumber(line[3]), tonumber(line[4]);
-            local ax,ay = LibSVG.transform(object.transformations, sx, sy);
-            local bx,by = LibSVG.transform(object.transformations, ex, ey);
+            local ax,ay = LibSVG_transform(object.transformations, sx, sy);
+            local bx,by = LibSVG_transform(object.transformations, ex, ey);
             if ( ax < bbox[1] ) then bbox[1] = ax; end if ( ax > bbox[3] ) then bbox[3] = ax; end
             if ( bx < bbox[1] ) then bbox[1] = bx; end if ( bx > bbox[3] ) then bbox[3] = bx; end
             if ( ay < bbox[2] ) then bbox[2] = ay; end if ( ay > bbox[4] ) then bbox[4] = ay; end
@@ -783,8 +766,8 @@ function LibSVG:RenderReal(object)
             local C = object.canvas;
             local color = object.fill;
             if ( f[1] == 'r' ) then
-                local ax,ay = LibSVG.transform(object.transformations, f[2], f[3]);
-                local bx,by = LibSVG.transform(object.transformations, f[4], f[5]);
+                local ax,ay = LibSVG_transform(object.transformations, f[2], f[3]);
+                local bx,by = LibSVG_transform(object.transformations, f[4], f[5]);
                 local rotation = tan( ( bx-ax) / (by-ay) );
                 if not C.SVG_Lines then C.SVG_Lines={} C.SVG_Lines_Used={} end
                 local T = tremove(C.SVG_Lines) or C:CreateTexture(nil, "BACKGROUND");
@@ -807,8 +790,8 @@ function LibSVG:RenderReal(object)
             elseif ( f[1] == 'c' ) then
                 local cx, cy = f[2], f[3];
                 local r = f[4];
-                local ax,ay = LibSVG.transform(object.transformations, cx-r, cy-r);
-                local bx,by = LibSVG.transform(object.transformations, cx+r, cy+r);
+                local ax,ay = LibSVG_transform(object.transformations, cx-r, cy-r);
+                local bx,by = LibSVG_transform(object.transformations, cx+r, cy+r);
                 if not C.SVG_Lines then C.SVG_Lines={} C.SVG_Lines_Used={} end
                 local T = tremove(C.SVG_Lines) or C:CreateTexture();
                 T:SetTexture(LibSVG.circle);
@@ -857,7 +840,7 @@ function LibSVG:RenderReal(object)
             local color = object.fill or object.color;
             local str = object.strings[n];
             local C = object.canvas;
-            local ax,ay = LibSVG.transform(object.transformations, str[1], str[2]);
+            local ax,ay = LibSVG_transform(object.transformations, str[1], str[2]);
             local garble = string.format("%8x", math.random(time()));
             local stringFont = CreateFont("LibSVG-1.0_StringFont"..garble);
             stringFont:SetFont([[Fonts\FRIZQT__.TTF]],   str[3]);
@@ -881,7 +864,7 @@ function LibSVG:RenderReal(object)
     coroutine.yield();
 end
 
-function LibSVG.transform(t, x, y)
+function LibSVG_transform(t, x, y)
     if ( type(t) == "table" and #t ) then
         for n = 0, #t-1 do
             local v = t[#t-n];
@@ -897,8 +880,8 @@ end
 -- Borrowed from LibGraph et al. (and heavilly modified)
 
 function LibSVG:DrawLine(C, sx, sy, ex, ey, w, color, transforms, tracePaths)
-    sx,sy = LibSVG.transform(transforms, sx, sy);
-    ex,ey = LibSVG.transform(transforms, ex, ey);
+    sx,sy = LibSVG_transform(transforms, sx, sy);
+    ex,ey = LibSVG_transform(transforms, ex, ey);
 
     sy = -sy;
     ey = -ey;
@@ -1006,16 +989,10 @@ function LibSVG:DrawLine(C, sx, sy, ex, ey, w, color, transforms, tracePaths)
     T:SetVertexColor(color[1],color[2],color[3],color[4]);
 
     -- Set texture coordinates and anchors
-
     T:SetTexCoord(TLx, TLy, BLx, BLy, TRx, TRy, BRx, BRy);
-
     T:SetPoint("TOPLEFT",   C, relPoint, cx - Bwid, cy + Bhgt);
     T:SetWidth(Bwid*2);
     T:SetHeight(Bhgt*2);
-
-    --T:SetPoint("BOTTOMLEFT", C, relPoint, cx - Bwid, cy - Bhgt);
-    --T:SetPoint("TOPRIGHT",   C, relPoint, cx + Bwid, cy + Bhgt);
-
     T:Show()
     return T
 end
@@ -1062,8 +1039,8 @@ function LibSVG:DrawVLine(C, x, sy, ey, w, color, layer, bbox, transforms)
             local sY, eY = bbox[2], bbox[4];
             local sX, eX = bbox[1], bbox[3];
             if ( def.x1 and def.x2 and transforms and def.type == "lineargradient" ) then
-                sX, sY = LibSVG.transform(transforms, def.x1, def.y1);
-                eX, eY = LibSVG.transform(transforms, def.x2, def.y2);
+                sX, sY = LibSVG_transform(transforms, def.x1, def.y1);
+                eX, eY = LibSVG_transform(transforms, def.x2, def.y2);
                 if ( eX < sX ) then
                     sX, eX = eX, sX;
                 end
@@ -1092,7 +1069,6 @@ function LibSVG:DrawVLine(C, x, sy, ey, w, color, layer, bbox, transforms)
     -- Set texture coordinates and anchors
     T:ClearAllPoints();
     T:SetTexCoord(1, 0, 0, 0, 1, 1, 0, 1);
-
     T:SetPoint("TOPLEFT", C, "TOPLEFT", x-(w/2), ey);
     T:SetWidth(w);
     T:SetHeight(abs(sy-ey));
@@ -1140,7 +1116,7 @@ function LibSVG:DrawHLine(C, y, sx, ex, w, color, layer, bbox)
     return T
 end
 
-function LibSVG.ParseColor(color)
+function LibSVG_ParseColor(color)
     if ( type(color) == "string" ) then
         color = color:gsub("%s", "");
         if ( color:sub(1,1) == "#" ) then
