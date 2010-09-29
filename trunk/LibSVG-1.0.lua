@@ -12,7 +12,10 @@ if ( dofile ) then
     dofile([[..\LibStub\LibStub.lua]]);
     dofile([[..\LibXML-1.0\LibXML-1.0.lua]]);
     _G.debugstack = function() return "AddOns\\Moo\\LibSVG-1.0.lua" end;
+    _G.GetBuildInfo = function() return "4.0.1", 13000, 0, 40000; end;
 end
+
+
 
 local TextureDirectory = "";
 local LIBSVG = "LibSVG-1.0"
@@ -24,6 +27,7 @@ if not LibXML then error(LIBSVG .. " requires LibXML-1.0.") end
 LibSVG.line = "";
 LibSVG.circle = "";
 LibSVG.diamond = "";
+LibSVG.isCata = false;
 do
     local path = string.match(debugstack(1,1,0), "AddOns\\(.+)LibSVG%-1%.0%.lua");
     if path then
@@ -32,6 +36,10 @@ do
         LibSVG.diamond = [[Interface\AddOns\]] .. path .. [[rect]];
     else
         error(LIBSVG.." cannot determine the folder it is located in because the path is too long and got truncated in the debugstack(1,1,0) function call")
+    end
+    local version, build, date, tocversion = GetBuildInfo();
+    if ( version:match("^4") ) then
+        LibSVG.isCata = true;
     end
 end
 
@@ -53,7 +61,7 @@ LibSVG.colors = {
 
 function LibSVG:New()
     local svg = {};
-    svg.detail = 1;
+    svg.detail = 1.33; -- default quality is 75
     svg.fill = true;
     svg.Parse = LibSVG.Parse;
     svg.Compile = LibSVG.Compile;
@@ -645,9 +653,9 @@ function LibSVG:RenderReal(object)
                 if not C.SVG_Lines then C.SVG_Lines={} C.SVG_Lines_Used={} end
                 local T = tremove(C.SVG_Lines) or C:CreateTexture(nil, "BACKGROUND");
                 if ( math.abs(rotation) == 0 or math.abs(rotation) == ( math.pi/2) ) then
-                    T:SetTexture([[Interface\BUTTONS\WHITE8X8]]);
+                    T:SetTexture(1,1,1,1);
                     tinsert(C.SVG_Lines_Used,T)
-                    T:SetDrawLayer("BACKGROUND");
+                    --T:SetDrawLayer("BACKGROUND", -1);
                     if ( not color.def ) then
                         T:SetVertexColor(color[1],color[2],color[3],color[4]);
                     else
@@ -666,7 +674,7 @@ function LibSVG:RenderReal(object)
                 local ax,ay = LibSVG.transform(object.transformations, cx-r, cy-r);
                 local bx,by = LibSVG.transform(object.transformations, cx+r, cy+r);
                 if not C.SVG_Lines then C.SVG_Lines={} C.SVG_Lines_Used={} end
-                local T = tremove(C.SVG_Lines) or C:CreateTexture(nil, "BACKGROUND");
+                local T = tremove(C.SVG_Lines) or C:CreateTexture();
                 T:SetTexture(LibSVG.circle);
                 tinsert(C.SVG_Lines_Used,T)
                 T:SetDrawLayer("BACKGROUND");
@@ -693,7 +701,13 @@ function LibSVG:RenderReal(object)
                     --    if ( Y ~= prev ) then
                             n = n + 1;
                             if ( math.fmod(n,2) == 0 ) then
-                                self:DrawVLine(object.canvas,k,prev,Y,2, object.fill, "BACKGROUND", object.bbox);
+                                if ( Y ~= prev ) then
+                                    if ( LibSVG.isCata ) then
+                                        self:DrawVLine(object.canvas,k,prev,Y,2, object.fill, -1, object.bbox);
+                                    else
+                                        self:DrawVLine(object.canvas,k,prev,Y,2, object.fill, "BACKGROUND", object.bbox);
+                                    end
+                                end
                             end
                     --    end
                         prev = Y;
@@ -790,7 +804,11 @@ function LibSVG:DrawLine(C, sx, sy, ex, ey, w, color, transforms, tracePaths)
         return self:DrawVLine(C,sx,sy,ey,w, color)
     end
     if sy==ey then
-        return self:DrawHLine(C,sy,sx,ex,w, color, "ARTWORK", tracePaths)
+        if ( LibSVG.isCata ) then
+            return self:DrawHLine(C,sy,sx,ex,w, color, 0, tracePaths)
+        else
+            return self:DrawHLine(C,sy,sx,ex,w, color, "ARTWORK", tracePaths)
+        end
     end
     w = w * 28 * (256/254);
 
@@ -840,11 +858,15 @@ function LibSVG:DrawLine(C, sx, sy, ex, ey, w, color, transforms, tracePaths)
     end
 
 
-    local T = tremove(C.SVG) or C:CreateTexture(nil, "ARTWORK")
+    local T = tremove(C.SVG) or C:CreateTexture()
     T:SetTexture(LibSVG.line);
     tinsert(C.SVG_Used,T)
 
-    T:SetDrawLayer(layer or "ARTWORK")
+    if ( LibSVG.isCata ) then
+        T:SetDrawLayer("ARTWORK", layer or 0)
+    else
+        T:SetDrawLayer(layer or "ARTWORK")
+    end
     T:SetVertexColor(color[1],color[2],color[3],color[4]);
 
     -- Set texture coordinates and anchors
@@ -876,11 +898,15 @@ function LibSVG:DrawVLine(C, x, sy, ey, w, color, layer, bbox)
         return;
     end
     --w = w * 32 * (256/254);
-    local T = tremove(C.SVG_Lines) or C:CreateTexture(nil, layer or "ARTWORK")
-    T:SetTexture([[Interface\BUTTONS\WHITE8X8]]);
+    local T = tremove(C.SVG_Lines) or C:CreateTexture()
+    T:SetTexture(1,1,1,1);
     tinsert(C.SVG_Lines_Used,T)
 
-    T:SetDrawLayer(layer or "ARTWORK")
+    if ( LibSVG.isCata ) then
+        T:SetDrawLayer("ARTWORK", layer or 0)
+    else
+        T:SetDrawLayer(layer or "ARTWORK")
+    end
 
     if sy>ey then
         sy, ey = ey, sy
@@ -919,8 +945,10 @@ function LibSVG:DrawVLine(C, x, sy, ey, w, color, layer, bbox)
     -- Set texture coordinates and anchors
     T:ClearAllPoints();
     T:SetTexCoord(1, 0, 0, 0, 1, 1, 0, 1);
-    T:SetPoint("BOTTOMLEFT", C, relPoint, x-w/2, sy);
-    T:SetPoint("TOPRIGHT",   C, relPoint, x+w/2, ey);
+
+    T:SetPoint("TOPLEFT", C, "TOPLEFT", x-(w/2), ey);
+    T:SetWidth(w);
+    T:SetHeight(math.abs(sy-ey));
     T:Show()
     return T
 end
@@ -937,12 +965,16 @@ function LibSVG:DrawHLine(C, y, sx, ex, w, color, layer, bbox)
         return;
     end
 
-    local T = tremove(C.SVG_Lines) or C:CreateTexture(nil, layer or "ARTWORK")
-    T:SetTexture([[Interface\BUTTONS\WHITE8X8]]);
+    local T = tremove(C.SVG_Lines) or C:CreateTexture()
+    T:SetTexture(1,1,1,1);
     tinsert(C.SVG_Lines_Used,T)
 
 
-    T:SetDrawLayer(layer or "ARTWORK")
+    if ( LibSVG.isCata ) then
+        T:SetDrawLayer("ARTWORK", layer or 0)
+    else
+        T:SetDrawLayer(layer or "ARTWORK")
+    end
 
     if sx>ex then
         sx, ex = ex, sx
@@ -950,20 +982,6 @@ function LibSVG:DrawHLine(C, y, sx, ex, w, color, layer, bbox)
 
     if ( not color.def ) then
         T:SetVertexColor(color[1],color[2],color[3],color[4]);
-    else
-        local def = nil;
-        for i = 1, #self.defs do
-            if ( color.def == self.defs[i].id ) then
-                def = self.defs[i];
-                break;
-            end
-        end
-        if ( def ) then
-            local sY, eY = bbox[2], bbox[4];
-            local sopacity, scolor = def.points[1].opacity * (color[4] or 1), def.points[1].color;
-            local eopacity, ecolor = def.points[#def.points].opacity * (color[4] or 1), def.points[#def.points].color;
-            T:SetGradientAlpha("horizontal", scolor[1], scolor[2],scolor[3], sopacity, ecolor[1], ecolor[2],ecolor[3], eopacity);
-        end
     end
 
     -- Set texture coordinates and anchors
