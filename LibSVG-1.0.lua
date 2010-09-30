@@ -346,6 +346,7 @@ function LibSVG:Compile(xml, group)
             object.tracePaths = {};
             object.lines = {};
 			object.class = el.class;
+			object.id = el.args.id;
 			local object_lines = object.lines;
             object.strings = {};
             object.transformations = object.transformations or {};
@@ -387,7 +388,7 @@ function LibSVG:Compile(xml, group)
             end
 
 			local black = LibSVG.colors.black;
-			object.stroke = group.stroke or 1;
+			object.stroke = group.stroke or 1.5;
 			object.fill = nil;
 			if ( group.fill ) then
 				object.fill = object.fill or {group.fill[1],group.fill[2],group.fill[3],group.fill[4]};
@@ -449,7 +450,9 @@ function LibSVG:Compile(xml, group)
 
             object.canvas = CreateFrame("Frame", group.canvas);
             object.canvas:SetParent(group.canvas);
-            object.canvas:SetAllPoints();
+            object.canvas:SetPoint("TOPLEFT");
+			object.canvas:SetPoint("BOTTOMRIGHT");
+
 
 
             if ( el.class == "defs" ) then
@@ -811,7 +814,7 @@ function LibSVG:Render(object)
     svg.canvas:SetScript("OnUpdate",
         function()
             local ret,err = coroutine.resume(co);
-            if ( err ) then print(ret, err); end
+            if ( err and err ~= "cannot resume dead coroutine" ) then print(ret, err); end
             if ( ret == false ) then
                 svg.canvas:SetScript("OnUpdate", nil);
             end
@@ -1062,6 +1065,7 @@ function LibSVG:DrawLine(C, sx, sy, ex, ey, w, color, transforms, tracePaths)
 
     local T = tremove(C.SVG) or C:CreateTexture()
     T:SetTexture(LibSVG.line);
+	T:SetNonBlocking(true);
     tinsert(C.SVG_Used,T)
 
     if ( LibSVG.isCata ) then
@@ -1095,7 +1099,7 @@ function LibSVG:DrawVLine(C, x, sy, ey, w, color, layer, bbox, transforms)
     end
     --w = w * 32 * (256/254);
     local T = tremove(C.SVG_Lines) or C:CreateTexture()
-
+	T:SetNonBlocking(true);
     tinsert(C.SVG_Lines_Used,T)
 
     if ( LibSVG.isCata ) then
