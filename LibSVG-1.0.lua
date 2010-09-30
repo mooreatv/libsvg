@@ -1,4 +1,4 @@
-    --[[
+--[[
 Name: LibSVG-1.0
 Revision: $Rev: @project-revision@ $
 Author(s): Humbedooh
@@ -194,6 +194,7 @@ function LibSVG:New()
     local svg = {};
     svg.detail = 100/70; -- default quality is 70% (which will suffice for most images)
     svg.fill = true;
+	svg.defaultColor = LibSVG.colors.black;
     svg.Parse = LibSVG.Parse;
     svg.Compile = LibSVG.Compile;
     svg.Render = LibSVG.Render;
@@ -204,7 +205,20 @@ function LibSVG:New()
     svg.DrawHLine = LibSVG.DrawHLine;
     svg.canvas = CreateFrame("Frame", nil);
     svg.SetDetail = LibSVG.SetDetail;
+	svg.Delete = LibSVG.Delete;
     return svg;
+end
+
+function LibSVG:Delete(object)
+	local svg = self;
+	object = object or self;
+	object.canvas:SetParent(nil);
+	object.canvas:Hide();
+	if ( object.children ) then
+		for k,child in pairs(object.children) do
+			self:Delete(child);
+		end
+	end
 end
 
 function LibSVG:Parse(xml)
@@ -285,7 +299,7 @@ end
 function LibSVG:Compile(xml, group)
     local svg = self;
     if ( xml == nil ) then
-        svg.CompiledData = { canvas = svg.canvas };
+        svg.CompiledData = { canvas = svg.canvas, class = "SVG" };
         svg.canvas:SetPoint("CENTER", UIParent, "CENTER", 0, 0);
     end
     local xml = xml or svg.xml;
@@ -301,10 +315,10 @@ function LibSVG:Compile(xml, group)
             el.args = el.args or {};
             object.tracePaths = {};
             object.lines = {};
+			object.class = el.class;
 			local object_lines = object.lines;
             object.strings = {};
             object.transformations = object.transformations or {};
-            tinsert(group.children, object);
             if ( group.transformations ) then
                 for k, v in pairs(group.transformations) do
                     tinsert(object.transformations, v);
@@ -341,7 +355,7 @@ function LibSVG:Compile(xml, group)
                     end
                 end
             end
-            object.stroke = (tonumber((el.args['stroke-width'] or ""):match("([%d%.%-]+)")) or 0)
+            object.stroke = (tonumber((el.args['stroke-width'] or ""):match("([%d%.%-]+)")) or 1)
             if ( el.args['stroke-width'] == "none" ) then object.stroke = 0; end
             object.color = LibSVG_ParseColor(el.args.stroke);
             object.fill = LibSVG_ParseColor(el.args.fill);
@@ -356,12 +370,12 @@ function LibSVG:Compile(xml, group)
 					if		( key == "fill" ) then object.fill = LibSVG_ParseColor(val);
 					elseif	( key == "fill-opacity" ) then object.fopacity = tonumber(val) or 0;
 					elseif ( key == "stroke" ) then object.color = LibSVG_ParseColor(val); if ( val:lower() == "none" ) then object.stroke = 0; end
-					elseif ( key == "stroke-opacity" ) then object.sopacity = tonumber(val) or 0;
+					elseif ( key == "stroke-opacity" ) then object.sopacity = tonumber(val) or 1;
                     elseif ( key == "stroke-width" ) then if ( val:lower() == "none" ) then object.stroke = 0; else object.stroke = (tonumber(val) or 0); end
 					elseif ( key == "opacity" ) then object.opacity = (tonumber(val) or 1); end
                 end
             end
-            object.color = object.color or group.color;
+            object.color = object.color or group.color or LibSVG.colors.black;
             object.stroke = object.stroke or group.stroke;
 			if ( group.fill ) then
 				object.fill = object.fill or {group.fill[1],group.fill[2],group.fill[3],group.fill[4]};
@@ -374,16 +388,19 @@ function LibSVG:Compile(xml, group)
             --object.color = LibSVG.colors.black;
             --object.stroke = 2;
 
-            object.canvas = CreateFrame("Frame");
-            object.canvas:SetParent(svg.canvas);
+            object.canvas = CreateFrame("Frame", group.canvas);
+            object.canvas:SetParent(group.canvas);
             object.canvas:SetAllPoints();
 
 
             if ( el.class == "defs" ) then
+				tinsert(group.children, object);
                 self:CompileDefs(el);
             elseif ( el.class == "g" ) then
+				tinsert(group.children, object);
                 svg:Compile(el, object);
             elseif ( el.class == "circle" ) then
+				tinsert(group.children, object);
                 local sX, sY = nil, nil;
                 local radius = tonumber(el.args.r) or 10;
                 local cX = tonumber(el.args.cx) or 0;
@@ -402,6 +419,7 @@ function LibSVG:Compile(xml, group)
                     sY = eY;
                 end
             elseif ( el.class == "ellipse" ) then
+				tinsert(group.children, object);
                 local sX, sY = nil, nil;
                 local rX = tonumber(el.args.rx) or 10;
                 local rY = tonumber(el.args.ry) or 10;
@@ -422,6 +440,7 @@ function LibSVG:Compile(xml, group)
                     sY = eY;
                 end
             elseif ( el.class == "rect" ) then
+				tinsert(group.children, object);
                 local x = tonumber(el.args.x) or 0;
                 local y = tonumber(el.args.y) or 0;
                 local width = tonumber(el.args.width) or 1;
@@ -434,6 +453,7 @@ function LibSVG:Compile(xml, group)
 
                 svg_CompiledArgs = svg_CompiledArgs + 4;
             elseif ( el.class == "polygon" ) then
+				tinsert(group.children, object);
                 local sX, sY = nil,nil;
                 local fX, fY = nil, nil;
                 local eX, eY = nil, nil;
@@ -457,6 +477,7 @@ function LibSVG:Compile(xml, group)
                 end
 
             elseif ( el.class == "polyline" ) then
+				tinsert(group.children, object);
                 local sX, sY = nil,nil;
                 local eX, eY = nil, nil;
                 for x,y in (el.args.points or ""):gmatch("([%d%-%.]+),([%d%-%.]+)") do
@@ -470,6 +491,7 @@ function LibSVG:Compile(xml, group)
                     sY = eY;
                 end
             elseif ( el.class == "text" or el.class == "tspan" ) then
+				tinsert(group.children, object);
                 local ax = (tonumber(el.args.x or object.x) or 0) + (tonumber(el.args.dx) or 0);
                 local ay = (tonumber(el.args.y or object.y) or 0) + (tonumber(el.args.dy) or 0);
                 local size = (tonumber(el.args['font-size']) or 12);
@@ -477,7 +499,6 @@ function LibSVG:Compile(xml, group)
                 for n = 0, #el do
                     if ( type(el[n]) == "string" ) then
                         text = text .. el[n];
-                        print(el[n]);
                     end
                 end
                 object.x = ax;
@@ -485,6 +506,7 @@ function LibSVG:Compile(xml, group)
                 tinsert(object.strings, {ax, ay, size, text});
                 svg:Compile(el, object); -- in case we have tspans inside
           elseif ( el.class == "path" ) then
+				tinsert(group.children, object);
                 el.args.d = (el.args.d or "y") .. "y"; -- kludge
                 local sX, sY = 0,0;
                 local xX, xY = nil,nil;
@@ -742,7 +764,6 @@ function LibSVG:RenderReal(object)
     local svg = self;
     local now = GetTime();
     svg.X = svg.X + 1;
-    --svg.CompiledData = svg.CompiledData or {};
     local object = object or svg.CompiledData;
     object.canvas:SetFrameLevel(svg.X);
     if ( object.fill ) then
@@ -825,7 +846,7 @@ function LibSVG:RenderReal(object)
                         local Y = v[#v-i];
                             n = n + 1;
                             if ( fmod(n,2) == 0 ) then
-                                if ( abs(prev-Y) >= 1 ) then
+                               if ( abs(prev-Y) >= 1 ) then
                                     if ( LibSVG.isCata ) then
                                         self:DrawVLine(object.canvas,k,prev,Y,2, object.fill, -1, object.bbox, object.transformations);
                                     else
@@ -932,7 +953,7 @@ function LibSVG:DrawLine(C, sx, sy, ex, ey, w, color, transforms, tracePaths)
             return self:DrawHLine(C,sy,sx,ex,w, color, "ARTWORK", tracePaths)
         end
     end
-    w = w * 30 * (256/254);
+    w = w * 32 * (256/254);
 
     if ( abs( sx - ex) < 1 and abs(sy - ey) < 1 ) then -- lines that don't go anywhere makes me a sad panda.
         return;
@@ -1015,7 +1036,7 @@ function LibSVG:DrawVLine(C, x, sy, ey, w, color, layer, bbox, transforms)
     end
     --w = w * 32 * (256/254);
     local T = tremove(C.SVG_Lines) or C:CreateTexture()
-   -- T:SetTexture(1,1,1,1);
+
     tinsert(C.SVG_Lines_Used,T)
 
     if ( LibSVG.isCata ) then
@@ -1140,7 +1161,7 @@ function LibSVG_ParseColor(color)
             return ret;
         elseif ( LibSVG.colors[color:lower()] ) then
 			local color = LibSVG.colors[color:lower()];
-            return {color[1], color[2], color[3], color[4]};
+            return {color[1], color[2], color[3], 1};
         end
     end
     return nil;
