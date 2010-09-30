@@ -259,7 +259,7 @@ function LibSVG:CompileDefs(xml)
         local el = xml[i];
         local c = el.class:lower();
         if ( c == "lineargradient" or c == "radialgradient" ) then
-            local def = { type = c, id = el.args.id, points = {} };
+            local def = { type = c, id = el.args.id, points = {}, transformations = {} };
             for j = 1, #el do
                 local arg = el[j];
                 if ( arg.class == "stop" ) then
@@ -282,9 +282,39 @@ function LibSVG:CompileDefs(xml)
                     end
                 end
             end
+			if ( el.args.gradientTransform ) then
+                for method, args in el.args.gradientTransform:gmatch("(%a+)%(([^%)]+)%)") do
+                    local n = {};
+                    for x in args:gmatch("([%d%.%-]+)") do
+                        n[#n+1] = tonumber(x);
+                    end
+                    method = method:lower();
+                    if ( method == "matrix" ) then
+                        tinsert(def.transformations, { (n[1] or 0), (n[2] or 0), (n[3] or 0), (n[4] or 0), (n[5] or 0), (n[6] or 0)});
+                    elseif ( method == "translate" ) then
+                        tinsert(def.transformations, {1, 0, 0, 1, n[1] or 0, n[2] or 0});
+                    elseif ( method == "scale" ) then
+                        tinsert(def.transformations, {n[1], 0, 0, n[2], 0, 0});
+                    elseif ( method == "rotate" ) then
+                        local a, x, y = rad(n[1] or 0), n[2], n[3];
+                        if ( not x or not y ) then
+                            tinsert(def.transformations, {cos(a),sin(a),-sin(a),cos(a),0,0});
+                        else
+                            tinsert(def.transformations, {1, 0, 0, 1, (x or 0), (y or 0)});
+                            tinsert(def.transformations, {cos(a),sin(a),-sin(a),cos(a),0,0});
+                            tinsert(def.transformations, {1, 0, 0, 1, -(x or 0), -(y or 0)});
+                        end
+                    elseif ( method == "skewx" ) then
+                        local a = rad(n[1] or 0);
+                        tinsert(def.transformations, {1, 0, tan(a), 1, 0, 0});
+                    elseif ( method == "skewy" ) then
+                        local a = rad(n[1] or 0);
+                        tinsert(def.transformations, {1, tan(a), 0, 1, 0, 0});
+                    end
+                end
+            end
             def.x1, def.y1, def.x2, def.y2 = tonumber(el.args.x1) or 0,tonumber(el.args.y1) or 0,tonumber(el.args.x2) or 0,tonumber(el.args.y2) or 0;
             tinsert(svg.defs, def);
-            --print("Added definition:", def.id);
         end
     end
 end
@@ -355,38 +385,67 @@ function LibSVG:Compile(xml, group)
                     end
                 end
             end
-            object.stroke = (tonumber((el.args['stroke-width'] or ""):match("([%d%.%-]+)")) or 1)
-            if ( el.args['stroke-width'] == "none" ) then object.stroke = 0; end
-            object.color = LibSVG_ParseColor(el.args.stroke);
-            object.fill = LibSVG_ParseColor(el.args.fill);
-			object.opacity = (tonumber((el.args['opacity'] or ""):match("([%d%.%-]+)"))) or group.opacity or 1;
-			object.sopacity = (tonumber((el.args['stroke-opacity'] or ""):match("([%d%.%-]+)"))) or group.sopacity or 1;
-			object.fopacity = (tonumber((el.args['fill-opacity'] or ""):match("([%d%.%-]+)"))) or group.fopacity or 1;
 
+			local black = LibSVG.colors.black;
+			object.stroke = group.stroke or 1;
+			object.fill = nil;
+			if ( group.fill ) then
+				object.fill = object.fill or {group.fill[1],group.fill[2],group.fill[3],group.fill[4]};
+			end
+			object.color = group.color or {black[1],black[2],black[3],1};
+			object.opacity = group.opacity or 1;
+			object.sopacity = group.sopacity or 1;
+			object.fopacity = group.fopacity or 1;
+
+			for arg, val in pairs(el.args) do
+				if ( arg == "stroke-width" ) then
+					if ( val:lower() == "none" ) then object.stroke = nil;
+					else object.stroke = tonumber(val:match("([%d%.%-]+)")) or object.stroke; -- fall back on inheritance
+					end
+				elseif ( arg == "stroke" ) then
+					if ( val:lower() == "none" ) then object.color = nil;
+					else object.color = LibSVG_ParseColor(val) or object.color; -- fall back on inheritance
+					end
+				elseif ( arg == "fill" ) then
+					if ( val:lower() == "none" ) then object.fill = nil;
+					else object.fill = LibSVG_ParseColor(val) or object.fill; -- fall back on inheritance
+					end
+				elseif ( arg == "opacity" ) then
+					if ( val:lower() == "none" ) then object.opacity = nil;
+					else object.opacity = (tonumber(val:match("([%d%.%-]+)")) or object.opacity) * object.opacity; -- fall back on inheritance
+					end
+				elseif ( arg == "stroke-opacity" ) then
+					if ( val:lower() == "none" ) then object.opacity = nil;
+					else object.sopacity = (tonumber(val:match("([%d%.%-]+)")) or object.sopacity) * object.sopacity; -- fall back on inheritance
+					end
+				elseif ( arg == "fill-opacity" ) then
+					if ( val:lower() == "none" ) then object.opacity = nil;
+					else object.fopacity = (tonumber(val:match("([%d%.%-]+)")) or object.fopacity) * object.fopacity; -- fall back on inheritance
+					end
+				end
+			end
             if ( el.args.style ) then
                 local style = el.args.style;
 				for key, val in style:gmatch("([%a%-]-)%:([^;]+)") do
 					key = key:lower();
 					if		( key == "fill" ) then object.fill = LibSVG_ParseColor(val);
-					elseif	( key == "fill-opacity" ) then object.fopacity = tonumber(val) or 0;
-					elseif ( key == "stroke" ) then object.color = LibSVG_ParseColor(val); if ( val:lower() == "none" ) then object.stroke = 0; end
-					elseif ( key == "stroke-opacity" ) then object.sopacity = tonumber(val) or 1;
-                    elseif ( key == "stroke-width" ) then if ( val:lower() == "none" ) then object.stroke = 0; else object.stroke = (tonumber(val) or 0); end
+					elseif	( key == "fill-opacity" ) then object.fopacity = (tonumber(val) or 0) * object.fopacity;
+					elseif ( key == "stroke-opacity" ) then object.sopacity = (tonumber(val) or 0) * object.sopacity;
+                    elseif ( key == "stroke-width" ) then if ( val:lower() == "none" ) then object.stroke = false; else object.stroke = (tonumber(val) or false); end
+					elseif ( key == "stroke" ) then object.color = LibSVG_ParseColor(val); if ( val:lower() == "none" ) then object.stroke = false; end
 					elseif ( key == "opacity" ) then object.opacity = (tonumber(val) or 1); end
                 end
             end
-            object.color = object.color or group.color or LibSVG.colors.black;
-            object.stroke = object.stroke or group.stroke;
-			if ( group.fill ) then
-				object.fill = object.fill or {group.fill[1],group.fill[2],group.fill[3],group.fill[4]};
-			end
-			if ( object.color ) then object.color[4] = object.sopacity * object.opacity; end
-			if ( object.fill ) then object.fill[4] = object.fopacity * object.opacity; end
+			object.stroke = object.stroke or 0;
+
+			if ( object.fill ) then object.fill[4] = object.fopacity; end
+			if ( object.color ) then object.color[4] = object.sopacity; end
 
             -- This is just debug stuff I use --
             --object.fill = nil;
             --object.color = LibSVG.colors.black;
-            --object.stroke = 2;
+            --object.stroke = 0;
+			--object.color = nil;
 
             object.canvas = CreateFrame("Frame", group.canvas);
             object.canvas:SetParent(group.canvas);
@@ -752,7 +811,7 @@ function LibSVG:Render(object)
     svg.canvas:SetScript("OnUpdate",
         function()
             local ret,err = coroutine.resume(co);
-            --if ( err ) then print(ret, err); end
+            if ( err ) then print(ret, err); end
             if ( ret == false ) then
                 svg.canvas:SetScript("OnUpdate", nil);
             end
@@ -803,7 +862,7 @@ function LibSVG:RenderReal(object)
                     tinsert(C.SVG_Lines_Used,T)
                     --T:SetDrawLayer("BACKGROUND", -1);
                     if ( not color.def ) then
-                        T:SetVertexColor(color[1],color[2],color[3],color[4]);
+                        T:SetVertexColor(color[1],color[2],color[3],pow(color[4],2));
                     else
                     end
                     T:ClearAllPoints();
@@ -1031,7 +1090,7 @@ function LibSVG:DrawVLine(C, x, sy, ey, w, color, layer, bbox, transforms)
         C.SVG_Lines={}
         C.SVG_Lines_Used={}
     end
-    if not color then
+    if not color or w == 0 then
         return;
     end
     --w = w * 32 * (256/254);
@@ -1050,7 +1109,7 @@ function LibSVG:DrawVLine(C, x, sy, ey, w, color, layer, bbox, transforms)
     end
 
     if ( not color.def ) then
-        T:SetTexture(color[1],color[2],color[3],color[4]);
+        T:SetTexture(color[1],color[2],color[3],pow(color[4],2));
     else
         local def = nil;
         for i = 1, #self.defs do
@@ -1069,10 +1128,14 @@ function LibSVG:DrawVLine(C, x, sy, ey, w, color, layer, bbox, transforms)
                     sX, eX = eX, sX;
                 end
             end
+			if ( def.transformations ) then
+				sX, sY = LibSVG_transform(def.transformations, sX, sY);
+				eX, eY = LibSVG_transform(def.transformations, eX, eY);
+			end
             local l = (eX - sX); if ( l == 0 ) then l = 0.01; end
             local a = ( x - sX ) / l;
             local fo, fc, fp = def.points[1].opacity * (color[4] or 1), def.points[1].color, 0;
-            local eo, ec, ep = def.points[#def.points].opacity * (color[4] or 1), def.points[#def.points].color, 1;
+            local eo, ec, ep = def.points[#def.points].opacity * (color[4] or 1), def.points[#def.points].color, 0;
             for n = 1, #def.points do
                 local d = def.points[n];
                 if ( d.offset >= a ) then
@@ -1086,7 +1149,7 @@ function LibSVG:DrawVLine(C, x, sy, ey, w, color, layer, bbox, transforms)
             local c = ( ep - a ) / z;
             local d = 1 - c;
             if ( c + d > 1 ) then c, d = (c/(c+d)), (d/(c+d)); end
-            T:SetTexture( (fc[1]*c)+(ec[1]*d), (fc[2]*c)+(ec[2]*d), (fc[3]*c)+(ec[3]*d), (fo*c)+(eo*d) );
+            T:SetTexture( (fc[1]*c)+(ec[1]*d), (fc[2]*c)+(ec[2]*d), (fc[3]*c)+(ec[3]*d), pow((fo*c)+(eo*d),2) );
         end
     end
 
@@ -1108,7 +1171,7 @@ function LibSVG:DrawHLine(C, y, sx, ex, w, color, layer, bbox)
         C.SVG_Lines_Used={}
     end
 
-    if not color then
+    if not color or w == 0 then
         return;
     end
 
