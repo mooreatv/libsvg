@@ -8,12 +8,14 @@ License: MIT License
 ]]
 
 -----------------------------------------------------------------------
+--@debug@
 if ( dofile ) then
-    dofile([[..\LibStub\LibStub.lua]]);
-    dofile([[..\LibXML-1.0\LibXML-1.0.lua]]);
-    _G.debugstack = function() return "AddOns\\Moo\\LibSVG-1.0.lua" end;
-    _G.GetBuildInfo = function() return "4.0.1", 13000, 0, 40000; end;
+	dofile([[..\LibStub\LibStub.lua]]);
+	dofile([[..\LibXML-1.0\LibXML-1.0.lua]]);
+	_G.debugstack = function() return "AddOns\\Moo\\LibSVG-1.0.lua" end;
+	_G.GetBuildInfo = function() return "4.0.1", 13000, 0, 40000; end;
 end
+--@end-debug@
 
 
 local LIBSVG = "LibSVG-1.0"
@@ -958,7 +960,7 @@ function LibSVG:RenderReal(object)
     end
     if ( object.strings ) then
         for n = 1, #object.strings do
-            local color = object.fill or object.color;
+            local color = object.fill or object.color or LibSVG.colors.black;
             local str = object.strings[n];
             local C = object.canvas;
             local ax,ay = LibSVG_transform(object.transformations, str[1], str[2]);
