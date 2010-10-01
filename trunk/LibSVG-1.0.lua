@@ -524,7 +524,7 @@ function LibSVG:Compile(xml, group)
                 local sX, sY = nil,nil;
                 local fX, fY = nil, nil;
                 local eX, eY = nil, nil;
-                for x,y in (el.args.points or ""):gmatch("([%d%-%.]+),([%d%-%.]+)") do
+                for x,_,y in (el.args.points or ""):gmatch("(%-?[%d%.]+)([^%d%-%.]*)(%-?[%d%.]+)") do
                     eX = tonumber(x) or 0;
                     eY = tonumber(y) or 0;
                     if ( sX ~= nil ) then
@@ -547,7 +547,7 @@ function LibSVG:Compile(xml, group)
 				tinsert(group.children, object);
                 local sX, sY = nil,nil;
                 local eX, eY = nil, nil;
-                for x,y in (el.args.points or ""):gmatch("([%d%-%.]+),([%d%-%.]+)") do
+                for x,_,y in (el.args.points or ""):gmatch("(%-?[%d%.]+)([^%d%-%.]*)(%-?[%d%.]+)") do
                     eX = tonumber(x) or 0;
                     eY = tonumber(y) or 0;
                     if ( sX ~= nil ) then
@@ -585,7 +585,7 @@ function LibSVG:Compile(xml, group)
                         rel = true;
                         c = string.upper(c);
                     end
-                    v:gsub("([%d%-%.]+)([^%d%-%.]+)([%d%-%.]+)", function (x, _, y)
+                    v:gsub("(%-?[%d%.]+)([^%d%-%.]*)(%-?[%d%.]+)", function (x, _, y)
                         tinsert(coords, {tonumber(x),tonumber(y)});
                     end);
 
