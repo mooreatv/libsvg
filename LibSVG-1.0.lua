@@ -367,8 +367,14 @@ function LibSVG:Compile(xml, group)
             if ( el.args.transform ) then
                 for method, args in el.args.transform:gmatch("(%a+)%(([^%)]+)%)") do
                     local n = {};
-                    for x in args:gmatch("([%d%.%-]+)") do
-                        n[#n+1] = tonumber(x);
+                    for x in args:gmatch("([%d%.%-e]+)") do
+						if ( x:match("e") ) then
+							local x,y = x:match("([%d%.%-]+)e([%d%.%-]+)");
+							n[#n+1] = (tonumber(x) or 0) * pow(10, tonumber(y) or 0);
+							print(n[#n]);
+						else
+							n[#n+1] = tonumber(x) or 0;
+						end
                     end
                     method = method:lower();
                     if ( method == "matrix" ) then
