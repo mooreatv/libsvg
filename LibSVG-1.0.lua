@@ -268,9 +268,13 @@ function LibSVG:CompileDefs(xml)
                 local arg = el[j];
                 if ( arg.class == "stop" ) then
                     local x = {};
-                    x.offset = tonumber(arg.args.offset) or 0;
+                    x.offset, perc = (arg.args.offset or ""):match("([%d%.%-]+)(%%?)");
+					if ( type(perc) == "string" ) then x.offset = (x.offset or 0) / 100; end
+					x.offset = x.offset or tonumber(arg.args.offset) or 0;
+					x.opacity = tonumber(arg.args.opacity) or 1;
+					x.color = LibSVG_ParseColor(arg.args['stop-color']);
                     if ( arg.args.style ) then
-                        x.color = LibSVG_ParseColor(arg.args.style:match("stop%-color:([^;]+)"));
+                        x.color = LibSVG_ParseColor(arg.args.style:match("stop%-color:([^;]+)")) or x.color;
                         x.opacity = tonumber(arg.args.style:match("stop%-opacity:([^;]+)")) or 1;
                     end
                     tinsert(def.points, x);
@@ -342,7 +346,7 @@ function LibSVG:Compile(xml, group)
     group.children = {};
 	local svg_CompiledArgs = 0;
 
-    for i = 1, #xml do
+	for i = 1, #xml do
         local el = xml[i];
         if ( type(el) == "table" ) then
             local object = { };
@@ -393,12 +397,13 @@ function LibSVG:Compile(xml, group)
             end
 
 			local black = LibSVG.colors.black;
-			object.stroke = group.stroke or 1.5;
+			object.stroke = group.stroke or 1.75;
 			object.fill = nil;
 			if ( group.fill ) then
 				object.fill = object.fill or {group.fill[1],group.fill[2],group.fill[3],group.fill[4]};
 			end
 			object.color = group.color or {black[1],black[2],black[3],1};
+			object.mColor = group.mColor or {black[1],black[2],black[3],1}; -- master color crap
 			object.opacity = group.opacity or 1;
 			object.sopacity = group.sopacity or 1;
 			object.fopacity = group.fopacity or 1;
@@ -410,11 +415,17 @@ function LibSVG:Compile(xml, group)
 					end
 				elseif ( arg == "stroke" ) then
 					if ( val:lower() == "none" ) then object.color = nil;
+					elseif ( val:lower() == "currentcolor" ) then object.color = object.mColor;
 					else object.color = LibSVG_ParseColor(val) or object.color; -- fall back on inheritance
+					end
+				elseif ( arg == "color" ) then
+					if ( val:lower() == "none" ) then object.mColor = nil;
+					else object.mColor = LibSVG_ParseColor(val) or object.mColor; -- fall back on inheritance
 					end
 				elseif ( arg == "fill" ) then
 					if ( val:lower() == "none" ) then object.fill = nil;
-					else object.fill = LibSVG_ParseColor(val) or object.fill; -- fall back on inheritance
+					elseif ( val:lower() == "currentcolor" ) then object.fill = object.mColor;
+					else object.fill = LibSVG_ParseColor(val) or object.fill or object.color; -- fall back on inheritance
 					end
 				elseif ( arg == "opacity" ) then
 					if ( val:lower() == "none" ) then object.opacity = nil;
@@ -881,15 +892,15 @@ function LibSVG:RenderReal(object)
                     T:SetDrawLayer("BACKGROUND", -1);
                     if ( not color.def ) then
                         T:SetVertexColor(color[1],color[2],color[3],pow(color[4],2));
+						s = true;
                     else
                     end
                     T:ClearAllPoints();
                     T:SetTexCoord(0,1,0,1);
-                    s = true;
                 end
-                T:SetPoint("TOPLEFT", C, "TOPLEFT", min(ax,bx), max(-ay,-by));
-                T:SetPoint("BOTTOMRIGHT",   C, "TOPLEFT", max(ax,bx), min(-ay,-by));
-
+                --T:SetPoint("TOPLEFT", C, "TOPLEFT", min(ax,bx), max(-ay,-by));
+                --T:SetPoint("BOTTOMRIGHT",   C, "TOPLEFT", max(ax,bx), min(-ay,-by));
+				T:SetAllPoints();
                 T:Show();
             elseif ( f[1] == 'c' ) then
                 local cx, cy = f[2], f[3];
@@ -903,14 +914,15 @@ function LibSVG:RenderReal(object)
                 T:SetDrawLayer("BACKGROUND");
                 if ( not color.def ) then
                     T:SetVertexColor(color[1],color[2],color[3],color[4]);
+					s = true;
                 else
                 end
                 T:ClearAllPoints();
                 T:SetTexCoord(0,1,0,1);
-                T:SetPoint("TOPLEFT", C, "TOPLEFT", ax, -ay);
-                T:SetPoint("BOTTOMRIGHT",   C, "TOPLEFT", bx, -by);
+				T:SetAllPoints();
+                --T:SetPoint("TOPLEFT", C, "TOPLEFT", min(ax,bx), max(-ay,-by));
+                --T:SetPoint("BOTTOMRIGHT",   C, "TOPLEFT", max(ax,bx), min(-ay,-by));
                 T:Show();
-                s = true;
             end
         end
         if ( s == false ) then
@@ -925,9 +937,9 @@ function LibSVG:RenderReal(object)
                             if ( fmod(n,2) == 0 ) then
                                if ( abs(prev-Y) >= 1 ) then
                                     if ( LibSVG.isCata ) then
-                                        self:DrawVLine(object.canvas,k,prev,Y,2, object.fill, -1, object.bbox, object.transformations);
+                                        self:DrawVLine(object.canvas,k,prev,Y,2, object.fill, -1, object.bbox, object.transformations, object);
                                     else
-                                        self:DrawVLine(object.canvas,k,prev,Y,2, object.fill, "BACKGROUND", object.bbox, object.transformations);
+                                        self:DrawVLine(object.canvas,k,prev,Y,2, object.fill, "BACKGROUND", object.bbox, object.transformations, object);
                                     end
                                 end
                             end
@@ -1108,7 +1120,7 @@ end
 
 
 
-function LibSVG:DrawVLine(C, x, sy, ey, w, color, layer, bbox, transforms)
+function LibSVG:DrawVLine(C, x, sy, ey, w, color, layer, bbox, transforms, object)
     local relPoint = "TOPLEFT"
     local svg = self;
 
@@ -1158,17 +1170,18 @@ function LibSVG:DrawVLine(C, x, sy, ey, w, color, layer, bbox, transforms)
 				sX, sY = LibSVG_transform(def.transformations, sX, sY);
 				eX, eY = LibSVG_transform(def.transformations, eX, eY);
 			end
+			x = x + bbox[1];
             local l = (eX - sX); if ( l == 0 ) then l = 0.01; end
             local a = ( x - sX ) / l;
-            local fo, fc, fp = def.points[1].opacity * (color[4] or 1), def.points[1].color, 0;
-            local eo, ec, ep = def.points[#def.points].opacity * (color[4] or 1), def.points[#def.points].color, 0;
+            local fo, fc, fp = (def.points[1].opacity or 1) * (color[4] or 1), def.points[1].color or object.mColor or LibSVG.colors.black, 0;
+            local eo, ec, ep = (def.points[#def.points].opacity or 1) * (color[4] or 1), def.points[#def.points].color or object.mColor, 1;
             for n = 1, #def.points do
                 local d = def.points[n];
                 if ( d.offset >= a ) then
-                    eo, ec, ep = def.points[n].opacity * (color[4] or 1), def.points[n].color, def.points[n].offset;
+                    eo, ec, ep = def.points[n].opacity * (color[4] or 1), def.points[n].color or object.mColor, def.points[n].offset;
                     break;
                 end
-                fo, fc, fp = def.points[n].opacity * (color[4] or 1), def.points[n].color, def.points[n].offset;
+                fo, fc, fp = def.points[n].opacity * (color[4] or 1), def.points[n].color or object.mColor, def.points[n].offset;
             end
             local z = (ep - fp);
             if ( z == 0 ) then z = 0.5; end
@@ -1176,6 +1189,7 @@ function LibSVG:DrawVLine(C, x, sy, ey, w, color, layer, bbox, transforms)
             local d = 1 - c;
             if ( c + d > 1 ) then c, d = (c/(c+d)), (d/(c+d)); end
             T:SetTexture( (fc[1]*c)+(ec[1]*d), (fc[2]*c)+(ec[2]*d), (fc[3]*c)+(ec[3]*d), pow((fo*c)+(eo*d),2) );
+			x = x - bbox[1];
         end
     end
 
