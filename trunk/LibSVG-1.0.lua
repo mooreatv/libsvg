@@ -346,6 +346,7 @@ function LibSVG:Compile(xml, group)
         local el = xml[i];
         if ( type(el) == "table" ) then
             local object = { };
+			object.parent = group;
             el.args = el.args or {};
             object.tracePaths = {};
             object.lines = {};
@@ -852,8 +853,8 @@ function LibSVG:RenderReal(object)
             if ( by < bbox[2] ) then bbox[2] = by; end if ( by > bbox[4] ) then bbox[4] = by; end
 		end
 		if ( iDrew ) then
-			object.canvas:SetPoint("TOPLEFT", svg.canvas, "TOPLEFT", bbox[1], -bbox[2]);
-			object.canvas:SetPoint("BOTTOMRIGHT", svg.canvas, "TOPLEFT", bbox[3], -bbox[4]);
+			object.canvas:SetPoint("TOPLEFT", object.parent.canvas, "TOPLEFT", bbox[1], -bbox[2]);
+			object.canvas:SetPoint("BOTTOMRIGHT", object.parent.canvas, "TOPLEFT", bbox[3], -bbox[4]);
 		end
 		object.bbox = bbox;
 		for key, line in pairs(object.lines) do
