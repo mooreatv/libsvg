@@ -837,20 +837,30 @@ function LibSVG:RenderReal(object)
     else
         object.tracePaths = nil;
     end
-    object.bbox = {0,0,1,1};
+    object.bbox = {};--{0,0,1,1};
     if ( object.lines ) then
         local bbox = {99999,99999,0,0};
+		local iDrew = false;
         for key, line in pairs(object.lines) do
-            local sx,sy,ex,ey = tonumber(line[1]), tonumber(line[2]), tonumber(line[3]), tonumber(line[4]);
+			iDrew = true;
+			local sx,sy,ex,ey = tonumber(line[1]), tonumber(line[2]), tonumber(line[3]), tonumber(line[4]);
             local ax,ay = LibSVG_transform(object.transformations, sx, sy);
             local bx,by = LibSVG_transform(object.transformations, ex, ey);
-            if ( ax < bbox[1] ) then bbox[1] = ax; end if ( ax > bbox[3] ) then bbox[3] = ax; end
+			if ( ax < bbox[1] ) then bbox[1] = ax; end if ( ax > bbox[3] ) then bbox[3] = ax; end
             if ( bx < bbox[1] ) then bbox[1] = bx; end if ( bx > bbox[3] ) then bbox[3] = bx; end
             if ( ay < bbox[2] ) then bbox[2] = ay; end if ( ay > bbox[4] ) then bbox[4] = ay; end
             if ( by < bbox[2] ) then bbox[2] = by; end if ( by > bbox[4] ) then bbox[4] = by; end
-            self:DrawLine(object.canvas, sx,sy,ex,ey, object.stroke, object.color, object.transformations, object.tracePaths);
+		end
+		if ( iDrew ) then
+			object.canvas:SetPoint("TOPLEFT", svg.canvas, "TOPLEFT", bbox[1], -bbox[2]);
+			object.canvas:SetPoint("BOTTOMRIGHT", svg.canvas, "TOPLEFT", bbox[3], -bbox[4]);
+		end
+		object.bbox = bbox;
+		for key, line in pairs(object.lines) do
+            local sx,sy,ex,ey = tonumber(line[1]), tonumber(line[2]), tonumber(line[3]), tonumber(line[4]);
+            self:DrawLine(object.canvas, sx,sy,ex,ey, object.stroke, object.color, object.transformations, object.tracePaths, bbox);
         end
-        object.bbox = bbox;
+
     end
     if ( object.fill and svg.fill ) then
         local s = false;
@@ -970,9 +980,13 @@ end
 
 -- Borrowed from LibGraph et al. (and heavilly modified)
 
-function LibSVG:DrawLine(C, sx, sy, ex, ey, w, color, transforms, tracePaths)
+function LibSVG:DrawLine(C, sx, sy, ex, ey, w, color, transforms, tracePaths, bbox)
     sx,sy = LibSVG_transform(transforms, sx, sy);
     ex,ey = LibSVG_transform(transforms, ex, ey);
+
+	if ( bbox ) then
+		sx,sy,ex,ey = sx-bbox[1],sy-bbox[2],ex-bbox[1],ey-bbox[2];
+	end
 
     sy = -sy;
     ey = -ey;
