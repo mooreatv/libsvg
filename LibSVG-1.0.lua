@@ -22,6 +22,7 @@ if not LibStub then error(LIBSVG .. " requires LibStub.") end
 local LibSVG = LibStub:NewLibrary(LIBSVG, LIBSVG_MINOR)
 local LibXML = LibStub("LibXML-1.0");
 if not LibXML then error(LIBSVG .. " requires LibXML-1.0.") end
+if not LibSVG then return end
 LibSVG.line = "";
 LibSVG.circle = "";
 LibSVG.diamond = "";
@@ -225,6 +226,9 @@ function LibSVG:Parse(xml)
     local svg = self;
     local xml = xml;
     if ( type(xml) == "string" ) then xml = LibXML:Import(xml); end
+	if ( xml == nil or #(xml or {}) == 0 ) then
+		error(LIBSVG.." Did not find any XML data to parse.")
+	end
     svg.xml = nil;
     if ( xml.class and xml.class:lower() == "svg" ) then
         local x,p = (xml.args.width or "100px"):match("([%d%.%-]+)([%a]*)");
@@ -835,7 +839,7 @@ function LibSVG:RenderReal(object)
     end
     object.bbox = {0,0,1,1};
     if ( object.lines ) then
-        local bbox = {0,0,0,0};
+        local bbox = {99999,99999,0,0};
         for key, line in pairs(object.lines) do
             local sx,sy,ex,ey = tonumber(line[1]), tonumber(line[2]), tonumber(line[3]), tonumber(line[4]);
             local ax,ay = LibSVG_transform(object.transformations, sx, sy);
