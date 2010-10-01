@@ -372,7 +372,7 @@ function LibSVG:Compile(xml, group)
                     elseif ( method == "translate" ) then
                         tinsert(object.transformations, {1, 0, 0, 1, n[1] or 0, n[2] or 0});
                     elseif ( method == "scale" ) then
-                        tinsert(object.transformations, {n[1], 0, 0, n[2], 0, 0});
+                        tinsert(object.transformations, {n[1] or 0, 0, 0, n[2] or n[1] or 0, 0, 0});
                     elseif ( method == "rotate" ) then
                         local a, x, y = rad(n[1] or 0), n[2], n[3];
                         if ( not x or not y ) then
@@ -874,11 +874,11 @@ function LibSVG:RenderReal(object)
                 local bx,by = LibSVG_transform(object.transformations, f[4], f[5]);
                 local rotation = tan( ( bx-ax) / (by-ay) );
                 if not C.SVG_Lines then C.SVG_Lines={} C.SVG_Lines_Used={} end
-                local T = tremove(C.SVG_Lines) or C:CreateTexture(nil, "BACKGROUND");
+                local T = tremove(C.SVG_Lines) or C:CreateTexture();
                 if ( abs(rotation) == 0 or abs(rotation) == ( pi/2) ) then
                     T:SetTexture(1,1,1,1);
                     tinsert(C.SVG_Lines_Used,T)
-                    --T:SetDrawLayer("BACKGROUND", -1);
+                    T:SetDrawLayer("BACKGROUND", -1);
                     if ( not color.def ) then
                         T:SetVertexColor(color[1],color[2],color[3],pow(color[4],2));
                     else
@@ -949,10 +949,11 @@ function LibSVG:RenderReal(object)
             local caption = C:CreateFontString(nil, "DIALOG");
             caption:SetFontObject(stringFont);
             caption:SetText(str[4]);
+			local w = caption:GetStringWidth();
             local h = caption:GetStringHeight();
             caption:SetPoint("TOPLEFT", C, "TOPLEFT", ax, -(ay-h));
-            caption:SetWidth(caption:GetStringWidth());
-            caption:SetHeight(caption:GetStringHeight());
+            caption:SetWidth(w);
+            caption:SetHeight(h);
             if ( color ) then
                 caption:SetTextColor(color[1],color[2],color[3],color[4]);
             end
@@ -967,12 +968,14 @@ function LibSVG:RenderReal(object)
 end
 
 function LibSVG_transform(t, x, y)
-    if ( type(t) == "table" and #t ) then
+    if ( type(t) == "table" and #t > 0 ) then
         for n = 0, #t-1 do
             local v = t[#t-n];
-            local nx = (x*v[1]) + (y*v[3]) + v[5];
-            local ny = (x*v[2]) + (y*v[4]) + v[6];
-            x,y = nx,ny;
+			if ( #v == 6 ) then
+				local nx = (x*v[1]) + (y*v[3]) + v[5];
+				local ny = (x*v[2]) + (y*v[4]) + v[6];
+				x,y = nx,ny;
+			end
         end
     end
     return x,y;
