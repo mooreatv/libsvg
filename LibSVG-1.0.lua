@@ -371,7 +371,6 @@ function LibSVG:Compile(xml, group)
 						if ( x:match("e") ) then
 							local x,y = x:match("([%d%.%-]+)e([%d%.%-]+)");
 							n[#n+1] = (tonumber(x) or 0) * pow(10, tonumber(y) or 0);
-							print(n[#n]);
 						else
 							n[#n+1] = tonumber(x) or 0;
 						end
@@ -403,12 +402,12 @@ function LibSVG:Compile(xml, group)
             end
 
 			local black = LibSVG.colors.black;
-			object.stroke = group.stroke or 1.75;
+			object.stroke = group.stroke or 1.5;
 			object.fill = nil;
 			if ( group.fill ) then
 				object.fill = object.fill or {group.fill[1],group.fill[2],group.fill[3],group.fill[4]};
 			end
-			object.color = group.color or {black[1],black[2],black[3],1};
+			object.color = group.color or nil;
 			object.mColor = group.mColor or {black[1],black[2],black[3],1}; -- master color crap
 			object.opacity = group.opacity or 1;
 			object.sopacity = group.sopacity or 1;
@@ -461,8 +460,10 @@ function LibSVG:Compile(xml, group)
             end
 			object.stroke = object.stroke or 0;
 
+			if ( object.stroke > 0 and object.stroke < 0.65 ) then  object.sopacity = object.sopacity * object.stroke; object.stroke = 0.65; end
 			if ( object.fill ) then object.fill[4] = object.fopacity; end
 			if ( object.color ) then object.color[4] = object.sopacity; end
+
 
             -- This is just debug stuff I use --
             --object.fill = nil;
