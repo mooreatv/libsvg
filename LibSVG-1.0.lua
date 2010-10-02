@@ -209,6 +209,7 @@ function LibSVG:New()
     svg.canvas = CreateFrame("Frame", nil);
     svg.SetDetail = LibSVG.SetDetail;
 	svg.Delete = LibSVG.Delete;
+	svg.Redraw = LibSVG.Redraw;
     return svg;
 end
 
@@ -295,8 +296,13 @@ function LibSVG:CompileDefs(xml)
 			if ( el.args.gradientTransform ) then
                 for method, args in el.args.gradientTransform:gmatch("(%a+)%(([^%)]+)%)") do
                     local n = {};
-                    for x in args:gmatch("([%d%.%-]+)") do
-                        n[#n+1] = tonumber(x);
+                    for x in args:gmatch("([%d%.%-e]+)") do
+						if ( x:match("e") ) then
+							local x,y = x:match("([%d%.%-]+)e([%d%.%-]+)");
+							n[#n+1] = (tonumber(x) or 0) * pow(10, tonumber(y) or 0);
+						else
+							n[#n+1] = tonumber(x) or 0;
+						end
                     end
                     method = method:lower();
                     if ( method == "matrix" ) then
@@ -847,12 +853,34 @@ function LibSVG:Render(object)
     return svg.canvas;
 end
 
-function LibSVG:RenderReal(object)
-    local svg = self;
+function LibSVG:Redraw(object, noDraw)
+	local svg = self;
     local now = GetTime();
+    local object = object or svg.CompiledData;
+	object.canvas.SVG_Used = object.canvas.SVG_Used or {};
+	object.canvas.SVG = object.canvas.SVG or {};
+	object.canvas:ClearAllPoints();
+	object.bbox = {};
+	for n = 1, #(object.canvas.SVG_Used) do
+		local C = tremove(object.canvas.SVG_Used);
+		C:Hide();
+		C:SetTexture(nil);
+		tinsert(object.canvas.SVG, C);
+	end
+	for k, child in pairs(object.children or {}) do
+		self:Redraw(child, true);
+	end
+	if ( not noDraw ) then
+		self:RenderReal(object, true);
+	end
+end
+
+function LibSVG:RenderReal(object, noCo)
+    local svg = self;
     svg.X = svg.X + 1;
     local object = object or svg.CompiledData;
-    object.canvas:SetFrameLevel(svg.X);
+    object.canvas:SetFrameLevel(object.X or svg.X);
+	object.X = object.X or svg.X;
     if ( object.fill ) then
         object.tracePaths = {};
     else
@@ -893,11 +921,11 @@ function LibSVG:RenderReal(object)
                 local ax,ay = LibSVG_transform(object.transformations, f[2], f[3]);
                 local bx,by = LibSVG_transform(object.transformations, f[4], f[5]);
                 local rotation = tan( ( bx-ax) / (by-ay) );
-                if not C.SVG_Lines then C.SVG_Lines={} C.SVG_Lines_Used={} end
+                if not C.SVG_Lines then C.SVG_Lines={} C.SVG_Used={} end
                 local T = tremove(C.SVG_Lines) or C:CreateTexture();
                 if ( abs(rotation) == 0 or abs(rotation) == ( pi/2) ) then
                     T:SetTexture(1,1,1,1);
-                    tinsert(C.SVG_Lines_Used,T)
+                    tinsert(C.SVG_Used,T)
                     T:SetDrawLayer("BACKGROUND", -1);
                     if ( not color.def ) then
                         T:SetVertexColor(color[1],color[2],color[3],pow(color[4],2));
@@ -916,10 +944,10 @@ function LibSVG:RenderReal(object)
                 local r = f[4];
                 local ax,ay = LibSVG_transform(object.transformations, cx-r, cy-r);
                 local bx,by = LibSVG_transform(object.transformations, cx+r, cy+r);
-                if not C.SVG_Lines then C.SVG_Lines={} C.SVG_Lines_Used={} end
+                if not C.SVG_Lines then C.SVG_Lines={} C.SVG_Used={} end
                 local T = tremove(C.SVG_Lines) or C:CreateTexture();
                 T:SetTexture(LibSVG.circle);
-                tinsert(C.SVG_Lines_Used,T)
+                tinsert(C.SVG_Used,T)
                 T:SetDrawLayer("BACKGROUND");
                 if ( not color.def ) then
                     T:SetVertexColor(color[1],color[2],color[3],color[4]);
@@ -982,10 +1010,12 @@ function LibSVG:RenderReal(object)
     end
     if ( object.children ) then
         for key, child in pairs(object.children) do
-            self:RenderReal(child);
+            self:RenderReal(child, noCo);
         end
     end
-    coroutine.yield();
+	if ( not noCo ) then
+		coroutine.yield();
+	end
 end
 
 function LibSVG_transform(t, x, y)
@@ -1133,17 +1163,16 @@ function LibSVG:DrawVLine(C, x, sy, ey, w, color, layer, bbox, transforms, objec
     local relPoint = "TOPLEFT"
     local svg = self;
 
-    if not C.SVG_Lines then
-        C.SVG_Lines={}
-        C.SVG_Lines_Used={}
+    if not C.SVG then
+        C.SVG={}
+        C.SVG_Used={}
     end
     if not color or w == 0 then
         return;
     end
     --w = w * 32 * (256/254);
-    local T = tremove(C.SVG_Lines) or C:CreateTexture()
-	T:SetNonBlocking(true);
-    tinsert(C.SVG_Lines_Used,T)
+    local T = tremove(C.SVG) or C:CreateTexture()
+    tinsert(C.SVG_Used,T)
 
     if ( LibSVG.isCata ) then
         T:SetDrawLayer("ARTWORK", layer or 0)
@@ -1215,18 +1244,18 @@ end
 function LibSVG:DrawHLine(C, y, sx, ex, w, color, layer, bbox)
     local relPoint = "TOPLEFT"
     local svg = self;
-    if not C.SVG_Lines then
-        C.SVG_Lines={}
-        C.SVG_Lines_Used={}
+    if not C.SVG then
+        C.SVG={}
+        C.SVG_Used={}
     end
 
     if not color or w == 0 then
         return;
     end
 
-    local T = tremove(C.SVG_Lines) or C:CreateTexture()
+    local T = tremove(C.SVG) or C:CreateTexture()
     T:SetTexture(1,1,1,1);
-    tinsert(C.SVG_Lines_Used,T)
+    tinsert(C.SVG_Used,T)
 
 
     if ( LibSVG.isCata ) then
