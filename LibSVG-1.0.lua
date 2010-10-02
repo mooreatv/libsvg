@@ -860,12 +860,12 @@ function LibSVG:Redraw(object, noDraw)
 	object.canvas.SVG_Used = object.canvas.SVG_Used or {};
 	object.canvas.SVG = object.canvas.SVG or {};
 	object.canvas:ClearAllPoints();
+	object.canvas:SetAllPoints(object.parent.canvas);
 	object.bbox = {};
 	for n = 1, #(object.canvas.SVG_Used) do
 		local C = tremove(object.canvas.SVG_Used);
 		C:Hide();
-		C:SetTexture(nil);
-		tinsert(object.canvas.SVG, C);
+		--tinsert(object.canvas.SVG, C); -- Ignored till I figure out why it's bugged
 	end
 	for k, child in pairs(object.children or {}) do
 		self:Redraw(child, true);
@@ -905,9 +905,11 @@ function LibSVG:RenderReal(object, noCo)
 			object.canvas:SetPoint("BOTTOMRIGHT", object.parent.canvas, "TOPLEFT", bbox[3], -bbox[4]);
 		end
 		object.bbox = bbox;
+		local col = object.color;
+		if ( object.stroke == 0 ) then col = nil; end
 		for key, line in pairs(object.lines) do
             local sx,sy,ex,ey = tonumber(line[1]), tonumber(line[2]), tonumber(line[3]), tonumber(line[4]);
-            self:DrawLine(object.canvas, sx,sy,ex,ey, object.stroke, object.color, object.transformations, object.tracePaths, bbox);
+            self:DrawLine(object.canvas, sx,sy,ex,ey, object.stroke or 0, col, object.transformations, object.tracePaths, bbox);
         end
 
     end
@@ -1098,7 +1100,7 @@ function LibSVG:DrawLine(C, sx, sy, ex, ey, w, color, transforms, tracePaths, bb
         C.SVG_Used={}
     end
 
-    if not color or w == 0 then
+    if not color or w <= 0.5 then
         return;
     end
 
@@ -1138,7 +1140,6 @@ function LibSVG:DrawLine(C, sx, sy, ex, ey, w, color, transforms, tracePaths, bb
 
     local T = tremove(C.SVG) or C:CreateTexture()
     T:SetTexture(LibSVG.line);
-	T:SetNonBlocking(true);
     tinsert(C.SVG_Used,T)
 
     if ( LibSVG.isCata ) then
@@ -1167,7 +1168,7 @@ function LibSVG:DrawVLine(C, x, sy, ey, w, color, layer, bbox, transforms, objec
         C.SVG={}
         C.SVG_Used={}
     end
-    if not color or w == 0 then
+    if not color or w <= 0.5 then
         return;
     end
     --w = w * 32 * (256/254);
@@ -1249,7 +1250,7 @@ function LibSVG:DrawHLine(C, y, sx, ex, w, color, layer, bbox)
         C.SVG_Used={}
     end
 
-    if not color or w == 0 then
+    if not color or w <= 0.5 then
         return;
     end
 
@@ -1269,7 +1270,7 @@ function LibSVG:DrawHLine(C, y, sx, ex, w, color, layer, bbox)
     end
 
     if ( not color.def ) then
-        T:SetVertexColor(color[1],color[2],color[3],color[4]);
+        T:SetTexture(color[1],color[2],color[3],color[4]);
     end
 
     -- Set texture coordinates and anchors
