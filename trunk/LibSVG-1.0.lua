@@ -865,7 +865,8 @@ function LibSVG:Redraw(object, noDraw)
 	for n = 1, #(object.canvas.SVG_Used) do
 		local C = tremove(object.canvas.SVG_Used);
 		C:Hide();
-		--tinsert(object.canvas.SVG, C); -- Ignored till I figure out why it's bugged
+		C:SetTexCoord(0,1,0,1);
+		tinsert(object.canvas.SVG, C);
 	end
 	for k, child in pairs(object.children or {}) do
 		self:Redraw(child, true);
