@@ -44,11 +44,12 @@ do
     end
 end
 
--- Upvalues, yaaaay
+-- Upvalues, yaaaay (also gets rid of blizzard's hardcoded math upvalues which are WRONG!! >:C)
 local
 	cos,acos,sin,asin,tan,atan,floor,sqrt,abs,pow,tinsert,tremove,max,min,pi,rad,deg,fmod =
 	math.cos, math.acos, math.sin, math.asin, math.tan, math.atan, math.floor, math.sqrt, math.abs, math.pow, tinsert, tremove, math.max, math.min, math.pi, math.rad, math.deg, math.fmod;
 
+-- This be them CSS or X11 colors. Feel free to use them for your own stuff.
 LibSVG.colors = {
 	black = {0.000,0.000,0.000,1},
 	navy = {0.000,0.000,0.502,1},
@@ -191,6 +192,33 @@ LibSVG.colors = {
 	ivory = {1.000,1.000,0.941,1},
 	white = {1.000,1.000,1.000,1},
 };
+
+local function LibSVG_ParseColor(color)
+    if ( type(color) == "string" ) then
+        color = color:gsub("%s", "");
+        if ( color:sub(1,1) == "#" ) then
+            local ret = {};
+            if ( color:len() == 4 ) then
+                string.gsub(color, "([0-9a-fA-F])", function (x) tinsert(ret, tonumber(x, 16) / 15); end);
+            else
+                string.gsub(color, "([0-9a-fA-F][0-9a-fA-F])", function (x) tinsert(ret, tonumber(x, 16) / 255); end);
+            end
+            tinsert(ret, 1);
+            return ret;
+        elseif ( color:match("url%(#([^%)]+)%)") ) then
+            local ret = color:match("url%(#([^%)]+)%)")
+            return {def = ret};
+        elseif ( color:match("%((%d+),(%d+),(%d+)%)") ) then
+            local ret = {color:match("%((%d+),(%d+),(%d+)%)")};
+            tinsert(ret,1);
+            return ret;
+        elseif ( LibSVG.colors[color:lower()] ) then
+			local color = LibSVG.colors[color:lower()];
+            return {color[1], color[2], color[3], 1};
+        end
+    end
+    return nil;
+end
 
 
 function LibSVG:New()
@@ -926,7 +954,7 @@ function LibSVG:RenderReal(object, noCo)
                 local rotation = tan( ( bx-ax) / (by-ay) );
                 if not C.SVG_Lines then C.SVG_Lines={} C.SVG_Used={} end
                 local T = tremove(C.SVG_Lines) or C:CreateTexture();
-                if ( abs(rotation) == 0 or abs(rotation) == ( pi/2) ) then
+                if ( abs(rotation) % (pi/2) == 0 ) then
                     T:SetTexture(1,1,1,1);
                     tinsert(C.SVG_Used,T)
                     T:SetDrawLayer("BACKGROUND", -1);
@@ -938,8 +966,6 @@ function LibSVG:RenderReal(object, noCo)
                     T:ClearAllPoints();
                     T:SetTexCoord(0,1,0,1);
                 end
-                --T:SetPoint("TOPLEFT", C, "TOPLEFT", min(ax,bx), max(-ay,-by));
-                --T:SetPoint("BOTTOMRIGHT",   C, "TOPLEFT", max(ax,bx), min(-ay,-by));
 				T:SetAllPoints();
                 T:Show();
             elseif ( f[1] == 'c' ) then
@@ -960,8 +986,6 @@ function LibSVG:RenderReal(object, noCo)
                 T:ClearAllPoints();
                 T:SetTexCoord(0,1,0,1);
 				T:SetAllPoints();
-                --T:SetPoint("TOPLEFT", C, "TOPLEFT", min(ax,bx), max(-ay,-by));
-                --T:SetPoint("BOTTOMRIGHT",   C, "TOPLEFT", max(ax,bx), min(-ay,-by));
                 T:Show();
             end
         end
@@ -975,7 +999,7 @@ function LibSVG:RenderReal(object, noCo)
                         local Y = v[#v-i];
                             n = n + 1;
                             if ( fmod(n,2) == 0 ) then
-                               if ( abs(prev-Y) >= 1 ) then
+                               if ( abs(prev-Y) > 0 ) then
                                     if ( LibSVG.isCata ) then
                                         self:DrawVLine(object.canvas,k,prev,Y,2, object.fill, -1, object.bbox, object.transformations, object);
                                     else
@@ -1046,11 +1070,13 @@ function LibSVG:DrawLine(C, sx, sy, ex, ey, w, color, transforms, tracePaths, bb
 		sx,sy,ex,ey = sx-bbox[1],sy-bbox[2],ex-bbox[1],ey-bbox[2];
 	end
 
+	if ( sx < 0 ) then sx = floor(sx - 0.5); else sx = floor(sx + 0.5); end
+    if ( ex < 0 ) then ex = floor(ex - 0.5); else ex = floor(ex + 0.5); end
+--	if ( sy < 0 ) then sy = floor(sy - 0.5); else sy = floor(sy + 0.5); end
+--  if ( ey < 0 ) then ey = floor(ey - 0.5); else ey = floor(ey + 0.5); end
+
     sy = -sy;
     ey = -ey;
-
-    if ( sx < 0 ) then sx = floor(sx - 0.5); else sx = floor(sx + 0.5); end
-    if ( ex < 0 ) then ex = floor(ex - 0.5); else ex = floor(ex + 0.5); end
 
     local relPoint = "TOPLEFT"
     local steps = abs(sx-ex);
@@ -1058,29 +1084,13 @@ function LibSVG:DrawLine(C, sx, sy, ex, ey, w, color, transforms, tracePaths, bb
     if ( tracePaths) then
         local py,px = nil, nil;
         for i = 1, steps do
-            local x = sx + ((ex-sx) * (i / steps));
+            local x = (sx + ((ex-sx) * (i / steps)));
             local y = sy + ((ey-sy) * ( i / steps));
             if ( not tracePaths[x] ) then tracePaths[x] = {}; end
             tinsert(tracePaths[x], y);
         end
     end
---[[
-    if ( sy < 0 ) then sy = floor(sy - 0.5); else sy = floor(sy + 0.5); end
-    if ( ey < 0 ) then ey = floor(ey - 0.5); else ey = floor(ey + 0.5); end
 
-    local relPoint = "BOTTOMLEFT"
-    local steps = abs(sy-ey);
-
-    if ( tracePaths) then
-        for i = 1, steps do
-            local x = sx + ((ex-sx) * (i / steps));
-            local y = sy + ((ey-sy) * ( i / steps));
-            --if ( y < 0 ) then y = floor(y + 0.5); else y = floor(y - 0.5); end
-            if ( not tracePaths[y] ) then tracePaths[y] = {}; end
-            tinsert(tracePaths[y], x);
-        end
-    end
-]]
     if sx==ex then
         return self:DrawVLine(C,sx,sy,ey,w, color)
     end
@@ -1281,31 +1291,4 @@ function LibSVG:DrawHLine(C, y, sx, ex, w, color, layer, bbox)
     T:SetPoint("TOPRIGHT",   C, relPoint, ex, y+w/2);
     T:Show()
     return T
-end
-
-function LibSVG_ParseColor(color)
-    if ( type(color) == "string" ) then
-        color = color:gsub("%s", "");
-        if ( color:sub(1,1) == "#" ) then
-            local ret = {};
-            if ( color:len() == 4 ) then
-                string.gsub(color, "([0-9a-fA-F])", function (x) tinsert(ret, tonumber(x, 16) / 15); end);
-            else
-                string.gsub(color, "([0-9a-fA-F][0-9a-fA-F])", function (x) tinsert(ret, tonumber(x, 16) / 255); end);
-            end
-            tinsert(ret, 1);
-            return ret;
-        elseif ( color:match("url%(#([^%)]+)%)") ) then
-            local ret = color:match("url%(#([^%)]+)%)")
-            return {def = ret};
-        elseif ( color:match("%((%d+),(%d+),(%d+)%)") ) then
-            local ret = {color:match("%((%d+),(%d+),(%d+)%)")};
-            tinsert(ret,1);
-            return ret;
-        elseif ( LibSVG.colors[color:lower()] ) then
-			local color = LibSVG.colors[color:lower()];
-            return {color[1], color[2], color[3], 1};
-        end
-    end
-    return nil;
 end
