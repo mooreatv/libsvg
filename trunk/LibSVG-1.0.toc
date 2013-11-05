@@ -1,10 +1,10 @@
-## Interface: 40000
+## Interface: 50400
 ## Title: LibSVG-1.0
 ## Notes: SVG Render-bender
 ## Author: Humbedooh
-## X-Max-Interface: 40000
+## X-Max-Interface: 50400
 ## X-Min-Interface: 30000
-## X-Compatible-With: 40000
+## X-Compatible-With: 50400
 LibStub\LibStub.lua
 LibXML\LibXML-1.0.lua
 LibSVG-1.0.lua
